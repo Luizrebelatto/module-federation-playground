@@ -13,8 +13,26 @@ export default Repack.defineRspackConfig((env) => ({
 
   entry: './index.js',
 
+  devServer: env.devServer
+    ? {
+        ...env.devServer,
+
+        proxy: [
+          {
+            context: ['/.expo/.virtual-metro-entry'],
+
+            pathRewrite: {
+              '^/.expo/.virtual-metro-entry': '/index',
+            },
+          },
+        ],
+      }
+    : undefined,
+
   resolve: {
-    ...Repack.getResolveOptions(),
+    ...Repack.getResolveOptions({
+      enablePackageExports: true,
+    }),
   },
 
   output: {
