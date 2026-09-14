@@ -1,4 +1,28 @@
 PODS:
+  - callstack-repack (5.3.0):
+    - hermes-engine
+    - JWTDecode (~> 3.0.0)
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - SwiftyRSA (~> 1.7)
+    - Yoga
   - EXConstants (57.0.18):
     - ExpoModulesCore
   - Expo (57.0.22):
@@ -73,6 +97,7 @@ PODS:
   - hermes-engine (250829098.0.17):
     - hermes-engine/Pre-built (= 250829098.0.17)
   - hermes-engine/Pre-built (250829098.0.17)
+  - JWTDecode (3.0.1)
   - RCTDeprecation (0.86.3)
   - RCTRequired (0.86.3)
   - RCTSwiftUI (0.86.3)
@@ -1893,9 +1918,13 @@ PODS:
     - React-utils (= 0.86.3)
     - ReactNativeDependencies
   - ReactNativeDependencies (0.86.3)
+  - SwiftyRSA (1.7.0):
+    - SwiftyRSA/ObjC (= 1.7.0)
+  - SwiftyRSA/ObjC (1.7.0)
   - Yoga (0.0.0)
 
 DEPENDENCIES:
+  - "callstack-repack (from `../node_modules/@callstack/repack`)"
   - EXConstants (from `../node_modules/expo-constants/ios`)
   - Expo (from `../node_modules/expo`)
   - ExpoAsset (from `../node_modules/expo-asset/ios`)
@@ -1984,7 +2013,14 @@ DEPENDENCIES:
   - ReactNativeDependencies (from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
+SPEC REPOS:
+  trunk:
+    - JWTDecode
+    - SwiftyRSA
+
 EXTERNAL SOURCES:
+  callstack-repack:
+    :path: "../node_modules/@callstack/repack"
   EXConstants:
     :path: "../node_modules/expo-constants/ios"
   Expo:
@@ -2160,6 +2196,7 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
+  callstack-repack: c868f94df4dcfffaa7cc467f3020c2f20a41da79
   EXConstants: 568e63ce4d1c1ebe8049a0307ae6bbe0fa881ff7
   Expo: 2091b5be483f32ccaf0be77d8d8e5944c2645bf4
   ExpoAsset: 1adaecbd4eff055da8bb5052b067b6b53f7064c2
@@ -2173,6 +2210,7 @@ SPEC CHECKSUMS:
   ExpoModulesWorklets: 37830cb23e90c87218523f942c3e10eaac9c9322
   FBLazyVector: 2138c6c2ab66c31bf5754dc18097fbc498a49c7f
   hermes-engine: 63c5db7d529c36335fada6582fd293ae2a105d77
+  JWTDecode: 2eed97c2fa46ccaf3049a787004eedf0be474a87
   RCTDeprecation: 96f68ebf33f8762466b01d57d6e873c4f30efb07
   RCTRequired: 166eed8ad6d8440e73e56d09a9090366609823d2
   RCTSwiftUI: e818198d11928a78c2b2afe281d072171dab617f
@@ -2245,6 +2283,7 @@ SPEC CHECKSUMS:
   ReactCodegen: 7c7e020b1632f46e59f83664bf69199737bb63ac
   ReactCommon: 6bd9ca59389608bf7828a6351c692fa444681b87
   ReactNativeDependencies: 6738e602b46fd24aa453cd58267ec3bb8bf29d27
+  SwiftyRSA: 8c6dd1ea7db1b8dc4fb517a202f88bb1354bc2c6
   Yoga: 18b74b3ade30bebc1904004dfaceae1dd02a330a
 
 PODFILE CHECKSUM: daaba7cc435bbd9e8fee4844ce78b5628e0d3065
