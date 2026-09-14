@@ -6,7 +6,7 @@ import {
   View,
 } from 'react-native';
 
-export default function ProfileCard() {
+export default function ProfileComponent() {
   const [count, setCount] = useState(0);
 
   return (
