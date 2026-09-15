@@ -10,6 +10,28 @@ A simple example to demonstrate how module exposure works in Module Federation. 
 # Arquitecture
 <img width="741" height="697" alt="Screenshot 2026-09-14 at 22 54 54" src="https://github.com/user-attachments/assets/e590a95c-91d6-4dc7-892b-d7362403af20" />
 
+# Concepts learned
+### Host
+an app that runs on the device and uses the exposed modules
+```javascript
+host-app
+```
+
+### Exposes
+- which modules will be on display
+- defined on remote `rspack.config.mjs`
+```javascript
+  exposes: {
+    './ProfileComponent': './src/profileComponent.tsx',
+  },
+```
+
+### Dynamic Import
+- Async import
+```javascript
+  import('profile/ProfileComponent')
+```
+
 # Structure
 ```
 .
