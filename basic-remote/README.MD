@@ -8,6 +8,7 @@ A simple example to demonstrate how module exposure works in Module Federation. 
 - Module Federation
 
 # Arquitecture
+<img width="741" height="697" alt="Screenshot 2026-09-14 at 22 54 54" src="https://github.com/user-attachments/assets/e590a95c-91d6-4dc7-892b-d7362403af20" />
 
 # Structure
 ```
