@@ -7,4 +7,5 @@ A simple example to demonstrate how module exposure works in Module Federation. 
 - Rspack
 - Module Federation
 
+# Arquitecture
 
