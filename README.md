@@ -10,3 +10,6 @@
 #### With module federation
 
 <img width="601" height="347" alt="Screenshot 2026-09-14 at 10 47 40" src="https://github.com/user-attachments/assets/130d03b3-4deb-4ec4-8ac6-03cc86b363fd" />
+
+[Deploy_sem_fronteira.pdf](https://github.com/user-attachments/files/32564698/Deploy_sem_fronteira.pdf)
+
