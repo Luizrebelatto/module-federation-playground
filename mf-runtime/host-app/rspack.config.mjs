@@ -32,5 +32,25 @@ export default Repack.defineRspackConfig({
       ...Repack.getAssetTransformRules(),
     ],
   },
-  plugins: [new Repack.RepackPlugin()],
+  plugins: [
+    new Repack.RepackPlugin(),
+    new Repack.plugins.ModuleFederationPluginV2({
+      name: 'host',
+      remotes: {
+        products: Repack.Federated.createRemote('products@dynamic'),
+      },
+      shared: {
+        react: {
+          singleton: true,
+          eager: true,
+          requiredVersion: '19.2.3',
+        },
+        'react-native': {
+          singleton: true,
+          eager: true,
+          requiredVersion: '0.86.3',
+        },
+      },
+    }),
+  ],
 });
