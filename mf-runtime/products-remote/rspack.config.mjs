@@ -32,5 +32,26 @@ export default Repack.defineRspackConfig({
       ...Repack.getAssetTransformRules(),
     ],
   },
-  plugins: [new Repack.RepackPlugin()],
+  plugins: [
+    new Repack.RepackPlugin(),
+    new Repack.plugins.ModuleFederationPluginV2({
+      name: 'products',
+      filename: 'products.container.bundle',
+      exposes: {
+        './ProductCard': './src/ProductCard.tsx',
+      },
+      shared: {
+        react: {
+          singleton: true,
+          eager: true,
+          requiredVersion: '19.2.3',
+        },
+        'react-native': {
+          singleton: true,
+          eager: true,
+          requiredVersion: '0.86.3',
+        },
+      },
+    }),
+  ],
 });
