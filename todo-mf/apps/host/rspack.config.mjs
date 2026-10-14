@@ -11,6 +11,9 @@ export default Repack.defineRspackConfig({
   entry: './index.ts',
   resolve: {
     ...Repack.getResolveOptions({ enablePackageExports: true }),
+    alias: {
+      '@todo-mf/packages': path.resolve(__dirname, "../../packages/todo-contract")
+    }
   },
   module: {
     rules: [
