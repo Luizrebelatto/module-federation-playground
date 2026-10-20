@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Re.Pack / Module Federation (gerado a cada build)
+/build
+@mf-types/

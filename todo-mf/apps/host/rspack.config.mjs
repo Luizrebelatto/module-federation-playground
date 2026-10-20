@@ -34,6 +34,7 @@ export default Repack.defineRspackConfig({
     new ExpoModulesPlugin(),
     new Repack.plugins.ModuleFederationPluginV2({
       name: 'host',
+      dts: false,
       shared: {
         react: { singleton: true, eager: true, requiredVersion: '19.2.3' },
         'react-native': { singleton: true, eager: true, requiredVersion: '0.86.3' },
