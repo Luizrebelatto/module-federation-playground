@@ -1,20 +1,17 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+
+import { AppNavigation } from './navigation/AppNavigation';
+import { createTodoStore } from './store/todoStore';
+import { TodoStoreProvider } from './store/TodoStoreContext';
+
+// Criado uma vez, fora do componente: sobrevive a re-renders e é o mesmo para host e remote.
+const todoStore = createTodoStore();
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
+    <TodoStoreProvider store={todoStore}>
+      <AppNavigation />
       <StatusBar style="auto" />
-    </View>
+    </TodoStoreProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
