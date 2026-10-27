@@ -1,10 +1,16 @@
+import { useEffect } from 'react';
 import { Button, StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { FederatedTodoWidget } from '../federation/FederatedTodoWidget';
+import { preloadTodoScreen } from '../federation/preloadTodoScreen';
 import type { RootStackParamList } from '../navigation/AppNavigation';
 
 export function HomeScreen({ navigation }: NativeStackScreenProps<RootStackParamList, 'Home'>) {
+  useEffect(() => {
+    void preloadTodoScreen();
+  }, []);
+
   return (
     <View style={styles.container}>
       <FederatedTodoWidget />
