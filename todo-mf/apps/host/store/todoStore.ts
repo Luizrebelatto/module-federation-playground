@@ -30,11 +30,17 @@ const createTodoState = (initial: readonly Todo[]) =>
       todos: initial,
       add: (title) =>
         mutate((current) => [...current, { id: createId(), title, completed: false }]),
+      // Id inexistente devolve `current`: o `mutate` vê que nada mudou e não notifica ninguém.
       toggle: (id) =>
         mutate((current) =>
-          current.map((todo) => (todo.id === id ? { ...todo, completed: !todo.completed } : todo)),
+          current.some((todo) => todo.id === id)
+            ? current.map((todo) => (todo.id === id ? { ...todo, completed: !todo.completed } : todo))
+            : current,
         ),
-      remove: (id) => mutate((current) => current.filter((todo) => todo.id !== id)),
+      remove: (id) =>
+        mutate((current) =>
+          current.some((todo) => todo.id === id) ? current.filter((todo) => todo.id !== id) : current,
+        ),
     };
   });
 
