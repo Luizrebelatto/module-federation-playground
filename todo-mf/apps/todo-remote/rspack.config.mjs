@@ -37,6 +37,7 @@ export default Repack.defineRspackConfig({
       dts: false,
       exposes: {
         './TodoScreen': './src/TodoScreen',
+        './TodoWidget': './src/TodoWidget',
       },
       shared: {
         // eager: false → usa as cópias que o host já colocou no share scope.

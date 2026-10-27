@@ -7,14 +7,17 @@ import { RemoteLoadError } from './RemoteLoadError';
 
 const LOAD_TIMEOUT_MS = 10_000;
 
-type TodoScreenComponent = ComponentType<TodoRemoteProps>;
+type TodoComponent = ComponentType<TodoRemoteProps>;
 
-// Pedidos simultâneos para o mesmo release compartilham a mesma Promise.
-const inFlight = new Map<string, Promise<TodoScreenComponent>>();
+/** Módulos que o container `todo` expõe (`exposes` do remote). */
+export type TodoExposed = 'TodoScreen' | 'TodoWidget';
+
+// Pedidos simultâneos para o mesmo release + módulo compartilham a mesma Promise.
+const inFlight = new Map<string, Promise<TodoComponent>>();
 // container -> entry registrado no runtime MF.
 const registered = new Map<string, string>();
 
-function loadOnce(key: string, load: () => Promise<TodoScreenComponent>) {
+function loadOnce(key: string, load: () => Promise<TodoComponent>) {
   const existing = inFlight.get(key);
   if (existing) return existing;
   const promise = load().catch((error) => {
@@ -44,12 +47,12 @@ function register(release: ResolvedRemote) {
   registered.set(release.container, release.entry);
 }
 
-async function importTodoScreen(release: ResolvedRemote): Promise<TodoScreenComponent> {
+async function importTodoModule(release: ResolvedRemote, exposed: TodoExposed): Promise<TodoComponent> {
   register(release);
-  let mod: { default?: TodoScreenComponent } | null;
+  let mod: { default?: TodoComponent } | null;
   try {
     mod = await withTimeout(
-      loadRemote<{ default?: TodoScreenComponent }>(`${release.container}/TodoScreen`),
+      loadRemote<{ default?: TodoComponent }>(`${release.container}/${exposed}`),
       LOAD_TIMEOUT_MS,
       release.releaseId,
     );
@@ -58,11 +61,15 @@ async function importTodoScreen(release: ResolvedRemote): Promise<TodoScreenComp
     throw new RemoteLoadError('load', `Failed to load ${release.releaseId}`, { cause: error });
   }
   if (!mod?.default) {
-    throw new RemoteLoadError('load', `${release.releaseId} does not expose a default TodoScreen`);
+    throw new RemoteLoadError('load', `${release.releaseId} does not expose a default ${exposed}`);
   }
   return mod.default;
 }
 
-export function loadTodoScreen(release: ResolvedRemote): Promise<TodoScreenComponent> {
-  return loadOnce(`${release.container}@${release.releaseId}`, () => importTodoScreen(release));
+export function loadTodoModule(release: ResolvedRemote, exposed: TodoExposed): Promise<TodoComponent> {
+  return loadOnce(`${release.container}@${release.releaseId}/${exposed}`, () => importTodoModule(release, exposed));
+}
+
+export function loadTodoScreen(release: ResolvedRemote): Promise<TodoComponent> {
+  return loadTodoModule(release, 'TodoScreen');
 }

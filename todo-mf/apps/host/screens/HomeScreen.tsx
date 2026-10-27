@@ -1,11 +1,13 @@
 import { Button, StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
+import { FederatedTodoWidget } from '../federation/FederatedTodoWidget';
 import type { RootStackParamList } from '../navigation/AppNavigation';
 
 export function HomeScreen({ navigation }: NativeStackScreenProps<RootStackParamList, 'Home'>) {
   return (
     <View style={styles.container}>
+      <FederatedTodoWidget />
       <Button title="Todo (remote, com fallback)" onPress={() => navigation.navigate('Todo')} />
       <Button title="Todo local" onPress={() => navigation.navigate('LocalTodo')} />
     </View>
