@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 
 import embeddedManifest from '../../../release/manifest.dev.json';
 import { RemoteLoadError } from '../federation/RemoteLoadError';
+import { DEV_DASHBOARD_URL } from './devDashboard';
 
 export type RemoteCompatibility = {
   runtimeApi: number;
@@ -28,7 +29,8 @@ export type ReleaseManifest = {
 
 export type ResolvedRemote = Omit<RemoteRelease, 'entries'> & { name: string; entry: string };
 
-const MANIFEST_URL: string | null = null;
+// Em dev, o dashboard de cenários entrega o manifesto; sem ele, vale o embarcado.
+const MANIFEST_URL = DEV_DASHBOARD_URL && `${DEV_DASHBOARD_URL}/manifest.json?platform=${Platform.OS}`;
 const MANIFEST_TIMEOUT_MS = 3000;
 
 const isString = (value: unknown): value is string => typeof value === 'string';
