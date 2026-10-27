@@ -1,7 +1,7 @@
 // apps/host/release/compatibility.ts
 import { version as reactVersion } from 'react';
 import { Platform } from 'react-native';
-import { CONTRACT_VERSION } from '@todo-mf/packages';
+import { CONTRACT_VERSION } from '@todo-mf/todo-contract';
 
 import appConfig from '../app.json';
 import { RemoteLoadError } from '../federation/RemoteLoadError';

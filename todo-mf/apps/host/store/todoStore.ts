@@ -1,5 +1,5 @@
 import { createStore } from 'zustand/vanilla';
-import type { Todo, TodoStore } from '@todo-mf/packages';
+import type { Todo, TodoStore } from '@todo-mf/todo-contract';
 
 let nextId = 0;
 const createId = () => `${Date.now().toString(36)}-${(nextId++).toString(36)}`;

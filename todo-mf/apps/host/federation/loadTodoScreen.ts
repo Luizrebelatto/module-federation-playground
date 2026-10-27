@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import { loadRemote, registerRemotes } from '@module-federation/enhanced/runtime';
-import type { TodoRemoteProps } from '@todo-mf/packages';
+import type { TodoRemoteProps } from '@todo-mf/todo-contract';
 
 import type { ResolvedRemote } from '../release/manifest';
 import { RemoteLoadError } from './RemoteLoadError';

@@ -1,5 +1,5 @@
 import { createContext, useContext, useSyncExternalStore, type ReactNode } from 'react';
-import type { TodoStore } from '@todo-mf/packages';
+import type { TodoStore } from '@todo-mf/todo-contract';
 
 const TodoStoreContext = createContext<TodoStore | null>(null);
 

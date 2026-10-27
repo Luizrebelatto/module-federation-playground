@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import type { TodoStore } from '@todo-mf/packages';
+import type { TodoStore } from '@todo-mf/todo-contract';
 
 import { useTodos } from '../store/TodoStoreContext';
 

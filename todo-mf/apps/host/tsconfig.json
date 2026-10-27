@@ -3,7 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@todo-mf/packages": ["../../packages/todo-contract"]
+      "@todo-mf/todo-contract": ["../../packages/todo-contract"]
     }
   }
 }

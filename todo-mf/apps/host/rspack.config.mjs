@@ -12,7 +12,7 @@ export default Repack.defineRspackConfig({
   resolve: {
     ...Repack.getResolveOptions({ enablePackageExports: true }),
     alias: {
-      '@todo-mf/packages': path.resolve(__dirname, "../../packages/todo-contract")
+      '@todo-mf/todo-contract': path.resolve(__dirname, "../../packages/todo-contract")
     }
   },
   module: {
