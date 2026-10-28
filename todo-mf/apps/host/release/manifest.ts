@@ -31,6 +31,9 @@ export type ReleaseManifest = {
 
 export type ResolvedRemote = Omit<RemoteRelease, 'entries'> & { name: string; entry: string };
 
+// CloudFront na frente do bucket S3 (privado, acesso via OAC). Layout do bucket: Fase 9 do apps/README.md.
+const CDN_BASE_URL = 'https://d2agf17ues9yij.cloudfront.net/todo-mf';
+
 // Cada canal tem a URL do manifesto remoto e o manifesto embarcado usado quando o remoto falha.
 // Em dev, o dashboard de cenários entrega o manifesto; sem ele, vale o embarcado.
 const CHANNELS = {
@@ -38,8 +41,8 @@ const CHANNELS = {
     url: DEV_DASHBOARD_URL && `${DEV_DASHBOARD_URL}/manifest.json?platform=${Platform.OS}`,
     embedded: devManifest,
   },
-  staging: { url: 'https://cdn.example.com/todo-mf/manifests/staging.json', embedded: stagingManifest },
-  production: { url: 'https://cdn.example.com/todo-mf/manifests/production.json', embedded: prodManifest },
+  staging: { url: `${CDN_BASE_URL}/manifests/staging.json`, embedded: stagingManifest },
+  production: { url: `${CDN_BASE_URL}/manifests/production.json`, embedded: prodManifest },
 } as const;
 
 const { url: MANIFEST_URL, embedded: embeddedManifest } = CHANNELS[__RELEASE_CHANNEL__];
