@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "channel": "staging",
+  "remotes": {
+    "todo": {
+      "enabled": false,
+      "container": "todo_remote",
+      "releaseId": "todo-0.0.0",
+      "entries": {},
+      "compatibility": {
+        "runtimeApi": 1,
+        "contract": "1.0.0",
+        "react": "19.2.3",
+        "reactNative": "0.86.3",
+        "minHostVersion": "1.0.0",
+        "maxHostVersionExclusive": "2.0.0"
+      }
+    }
+  }
+}

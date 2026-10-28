@@ -1,6 +1,8 @@
 import { Platform } from 'react-native';
 
-import embeddedManifest from '../../../release/manifest.dev.json';
+import devManifest from '../../../release/manifest.dev.json';
+import prodManifest from '../../../release/manifest.prod.json';
+import stagingManifest from '../../../release/manifest.staging.json';
 import { RemoteLoadError } from '../federation/RemoteLoadError';
 import { DEV_DASHBOARD_URL } from './devDashboard';
 
@@ -29,8 +31,18 @@ export type ReleaseManifest = {
 
 export type ResolvedRemote = Omit<RemoteRelease, 'entries'> & { name: string; entry: string };
 
+// Cada canal tem a URL do manifesto remoto e o manifesto embarcado usado quando o remoto falha.
 // Em dev, o dashboard de cenários entrega o manifesto; sem ele, vale o embarcado.
-const MANIFEST_URL = DEV_DASHBOARD_URL && `${DEV_DASHBOARD_URL}/manifest.json?platform=${Platform.OS}`;
+const CHANNELS = {
+  dev: {
+    url: DEV_DASHBOARD_URL && `${DEV_DASHBOARD_URL}/manifest.json?platform=${Platform.OS}`,
+    embedded: devManifest,
+  },
+  staging: { url: 'https://cdn.example.com/todo-mf/manifests/staging.json', embedded: stagingManifest },
+  production: { url: 'https://cdn.example.com/todo-mf/manifests/production.json', embedded: prodManifest },
+} as const;
+
+const { url: MANIFEST_URL, embedded: embeddedManifest } = CHANNELS[__RELEASE_CHANNEL__];
 const MANIFEST_TIMEOUT_MS = 3000;
 
 const isString = (value: unknown): value is string => typeof value === 'string';
@@ -63,6 +75,10 @@ export function parseManifest(value: unknown): ReleaseManifest {
     !Object.values(manifest.remotes).every(isRemoteRelease)
   ) {
     throw new RemoteLoadError('manifest', 'Release manifest has an invalid schema');
+  }
+  // Manifesto de outro canal (ex.: staging publicado no caminho de produção) é erro de deploy.
+  if (manifest.channel !== __RELEASE_CHANNEL__) {
+    throw new RemoteLoadError('manifest', `Manifest channel ${manifest.channel} != ${__RELEASE_CHANNEL__}`);
   }
   return manifest as ReleaseManifest;
 }

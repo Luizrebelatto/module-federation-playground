@@ -39,6 +39,9 @@
   },
   "jest": {
     "preset": "jest-expo",
+    "globals": {
+      "__RELEASE_CHANNEL__": "dev"
+    },
     "moduleNameMapper": {
       "^@todo-mf/todo-contract$": "<rootDir>/../../packages/todo-contract/index.ts"
     }
