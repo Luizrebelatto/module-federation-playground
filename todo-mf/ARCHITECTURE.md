@@ -266,3 +266,7 @@ O destino fica em `release/cdn.env`, que **não é commitado**, porque o reposit
 ---
 
 
+
+https://github.com/user-attachments/assets/5c3397dd-019b-41f6-9304-60cbb1359fc8
+
+
