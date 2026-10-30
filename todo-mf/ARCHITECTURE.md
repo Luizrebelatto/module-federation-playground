@@ -110,11 +110,7 @@ flowchart TB
 ```
 
 ### Estado compartilhado
-- O **store é criado uma vez no host** (`App.tsx`) e vive fora do React. Host e remote usam **a mesma instância**.
-- O remote recebe o store **por props** (`TodoRemoteProps`), não por Context. Assim, uma cópia diferente de React/Context do lado do remote não quebra nada.
-- Leitura: `useSyncExternalStore(store.subscribe, store.getSnapshot)`, igual no host e no remote.
-- Escrita: `add`, `toggle` e `remove` passam por uma **fila de Promises**. Toques concorrentes nunca sobrescrevem um ao outro.
-- Ainda é só memória: a persistência é a Fase 4.
+Um único `TodoStore`, criado no host, alimenta as telas locais e as remotas. Detalhes na [seção 4](#4-estado-compartilhado-store-e-contexto).
 
 ### Dependências compartilhadas (share scope do MF)
 | Lib | Host | Remote |
@@ -126,7 +122,131 @@ Módulo nativo **não** vem pela federação. Se o remote precisar de algo nativ
 
 ---
 
-## 4. Fluxo ao abrir a tela Todo
+## 4. Estado compartilhado: store e contexto
+
+Existe **uma instância** de `TodoStore` no app inteiro. Ela é criada no host e lida por todas as telas Todo, locais e remotas. Por isso uma tarefa adicionada na tela remota aparece na tela local, no fallback e no widget da Home, e vice-versa.
+
+```mermaid
+flowchart TB
+  subgraph Host["Host (apps/host)"]
+    Zustand["zustand/vanilla<br/>createTodoState()<br/>estado + fila de escrita"]
+    Adapter["createTodoStore()<br/>adapta para o contrato TodoStore"]
+    AppTsx["App.tsx<br/>const todoStore = createTodoStore()"]
+    Ctx["TodoStoreProvider<br/>(React Context)"]
+
+    Zustand --> Adapter --> AppTsx --> Ctx
+
+    Ctx -- "useTodoStore()" --> LocalRoute["LocalTodoRoute"]
+    Ctx -- "useTodoStore()" --> TodoScreen["TodoScreen<br/>(remote com fallback)"]
+    Ctx -- "useTodoStore()" --> Widget["FederatedTodoWidget"]
+
+    LocalRoute -- "prop store" --> Local1["LocalTodoScreen"]
+    TodoScreen -- "prop store<br/>(se o remote falhar)" --> Local2["LocalTodoScreen<br/>+ banner"]
+  end
+
+  subgraph Remote["Remote todo (apps/todo-remote)"]
+    RScreen["TodoScreen"]
+    RWidget["TodoWidget"]
+  end
+
+  TodoScreen -- "prop store + releaseId<br/>(TodoRemoteProps)" --> RScreen
+  Widget -- "prop store + releaseId" --> RWidget
+```
+
+### As três camadas
+
+**1. Estado: `store/todoStore.ts`.** O estado fica num store `zustand/vanilla`, que não depende de React. Toda escrita passa por `mutate`, que encadeia a operação numa fila de Promises:
+
+```ts
+const mutate = (update: (current: readonly Todo[]) => readonly Todo[]) => {
+  const run = queue.then(() => {
+    set((state) => {
+      const next = update(state.todos);
+      return next === state.todos ? state : { todos: next };
+    });
+  });
+  queue = run.catch(() => undefined);
+  return run;
+};
+```
+
+- Cada `add` / `toggle` / `remove` lê o snapshot **mais recente** dentro da fila. Dois toques simultâneos rodam um depois do outro e nenhum sobrescreve o outro.
+- Se a operação não muda nada (por exemplo, `toggle` de um id inexistente), `update` devolve o mesmo array e o zustand não notifica ninguém.
+- Uma operação que falhe não trava a fila: `queue` segue a partir do `catch`.
+
+**2. Contrato: `createTodoStore()`.** O zustand não sai do host. `createTodoStore()` expõe só a interface `TodoStore` de `@todo-mf/todo-contract`:
+
+```ts
+return {
+  getSnapshot: () => state.getState().todos,
+  subscribe: (listener) => state.subscribe(() => listener()),
+  add,
+  toggle,
+  remove,
+};
+```
+
+- `getSnapshot` devolve sempre a mesma referência enquanto nada muda, como `useSyncExternalStore` exige.
+- `subscribe` descarta os argumentos `(state, prev)` do zustand: o contrato é `() => void`.
+- O remote nunca importa zustand nem nada de `store/`. Trocar a implementação (por exemplo, para adicionar persistência na Fase 4) não muda o contrato.
+
+**3. Distribuição: `store/TodoStoreContext.tsx`.** `App.tsx` cria o store **uma vez, fora do componente**, e o coloca num Context:
+
+```tsx
+const todoStore = createTodoStore();
+
+export default function App() {
+  return (
+    <TodoStoreProvider store={todoStore}>
+      <AppNavigation />
+    </TodoStoreProvider>
+  );
+}
+```
+
+- `useTodoStore()` pega a instância do Context. Ele lança erro se for usado fora do Provider.
+- `useTodos(store)` é o `useSyncExternalStore(store.subscribe, store.getSnapshot)` do host.
+
+### Quem lê o store, e como
+
+| Componente | Roda em | Como recebe o store | Como lê |
+|---|---|---|---|
+| `LocalTodoRoute` → `LocalTodoScreen` | host | `useTodoStore()` → prop `store` | `useTodos(store)` |
+| `TodoScreen` (fallback `LocalTodoScreen`) | host | `useTodoStore()` → prop `store` | `useTodos(store)` |
+| `TodoScreen` remota | remote | prop `store` (`TodoRemoteProps`) | `useSyncExternalStore(...)` |
+| `TodoWidget` remoto | remote | prop `store` (`TodoRemoteProps`) | `useSyncExternalStore(...)` |
+
+### Por que Context no host e props no remote
+- **Dentro do host**, o Context evita passar o store por toda a navegação.
+- **No limite federado**, o store vai **por prop**. O remote é outro bundle: se ele importasse `TodoStoreContext`, teria a própria cópia do módulo e um Context diferente, sem Provider, e `useTodoStore()` lançaria erro. Com a prop, só o tipo do contrato precisa coincidir.
+- `react` e `react-native` são `singleton` no share scope, então o `useSyncExternalStore` do remote é o mesmo React do host e se inscreve no mesmo store.
+
+### Uma escrita, todas as telas atualizadas
+
+```mermaid
+sequenceDiagram
+  participant RS as TodoScreen (remote)
+  participant S as todoStore (host)
+  participant W as TodoWidget (remote, Home)
+  participant L as LocalTodoScreen (host)
+
+  RS->>S: store.add("comprar pão")
+  S->>S: mutate: entra na fila, set({ todos: next })
+  S-->>RS: listener → novo snapshot
+  S-->>W: listener → "1 tarefa(s) pendente(s)"
+  S-->>L: listener → lista com "comprar pão"
+```
+
+Como local e remote leem a mesma instância, a troca para o fallback no meio da sessão (remote cai, Error Boundary assume) mantém as tarefas que o usuário já tinha.
+
+### Limites atuais
+- O estado vive **só em memória**: fechar o app perde as tarefas. A persistência é a Fase 4.
+- Mudar a forma de `TodoStore` é mudança de **contrato**: sobe `CONTRACT_VERSION` e, no major, o remote antigo passa a ser recusado por `assertCompatible`.
+- Testes em `apps/host/__tests__/todoStore.test.ts`: `add` simultâneos mantêm ordem, dois `toggle` seguidos voltam ao original e `getSnapshot` mantém a referência quando nada muda.
+
+---
+
+## 5. Fluxo ao abrir a tela Todo
 
 ```mermaid
 sequenceDiagram
@@ -174,7 +294,7 @@ Outros pontos do fluxo:
 
 ---
 
-## 5. Canais (dev / staging / produção)
+## 6. Canais (dev / staging / produção)
 
 O canal é escolhido **no build**: `RELEASE_CHANNEL=staging` vira a constante `__RELEASE_CHANNEL__` (via `DefinePlugin`), que seleciona a URL do manifesto e o manifesto embarcado.
 
@@ -200,7 +320,7 @@ Regras do canal:
 
 ---
 
-## 6. CDN (AWS)
+## 7. CDN (AWS)
 
 ```mermaid
 flowchart LR
@@ -265,7 +385,7 @@ O destino fica em `release/cdn.env`, que **não é commitado**, porque o reposit
 
 ---
 
-## 7. Estado atual × planejado
+## 8. Estado atual × planejado
 
 | Parte | Estado |
 |---|---|
@@ -282,7 +402,7 @@ O destino fica em `release/cdn.env`, que **não é commitado**, porque o reposit
 
 ---
 
-## 8. Sugestão para o desenho no Excalidraw
+## 9. Sugestão para o desenho no Excalidraw
 
 Três zonas lado a lado, com uma cor por zona:
 

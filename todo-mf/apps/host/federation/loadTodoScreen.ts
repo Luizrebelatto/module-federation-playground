@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import { LogBox } from 'react-native';
 import { loadRemote, registerRemotes } from '@module-federation/enhanced/runtime';
 import type { TodoRemoteProps } from '@todo-mf/todo-contract';
 
@@ -6,6 +7,10 @@ import type { ResolvedRemote } from '../release/manifest';
 import { RemoteLoadError } from './RemoteLoadError';
 
 const LOAD_TIMEOUT_MS = 10_000;
+
+// ScriptManager e CorePlugin do Re.Pack fazem console.error quando o entry não baixa;
+// a falha real chega em importTodoModule e vira RemoteLoadError + fallback + telemetria.
+if (__DEV__) LogBox.ignoreLogs(['[ScriptManager] Failed to load script:', 'Failed to load remote entry:']);
 
 type TodoComponent = ComponentType<TodoRemoteProps>;
 
