@@ -385,49 +385,8 @@ O destino fica em `release/cdn.env`, que **não é commitado**, porque o reposit
 
 ---
 
-## 8. Estado atual × planejado
 
-| Parte | Estado |
-|---|---|
-| Host: store, navegação, tela local, loader MF, Error Boundary, telemetria (console + dashboard) | ✅ |
-| Remote `todo` (`TodoScreen`, `TodoWidget`) servido em dev na porta 9000 | ✅ |
-| Testes (store, loader, manifesto, compatibilidade) | ✅ |
-| Canais + manifestos de staging e produção + publicação na CDN | ✅ Fase 5 |
-| S3 + CloudFront criados | ✅ |
-| Persistência do store | ⏳ Fase 4 |
-| Release anterior, último release bom, rollout percentual | ⏳ Fase 6 |
-| Compatibilidade de bytecode Hermes | ⏳ Fase 7 |
-| Retry com backoff + métricas de sucesso | ⏳ Fase 8 |
-| Bundles do remote na CDN, assinados (CodeSigningPlugin), via CI | ⏳ Fase 9 |
 
----
+https://github.com/user-attachments/assets/5c3397dd-019b-41f6-9304-60cbb1359fc8
 
-## 9. Sugestão para o desenho no Excalidraw
 
-Três zonas lado a lado, com uma cor por zona:
-
-1. **📱 Aparelho** (azul)
-   - Uma caixa grande **Host**. Dentro dela:
-     - **Store** (no centro, porque todo mundo lê dele);
-     - **Telas**: Home, TodoScreen, LocalTodo;
-     - **release/**: manifesto e compatibilidade;
-     - **federation/**: loader, Error Boundary e telemetria.
-   - Dentro do Host, uma caixa tracejada para o **Remote carregado**, com a seta "store via props" saindo do Store.
-   - Um selo **React/RN singleton** entre o Host e o Remote.
-2. **💻 Dev** (cinza): **todo-remote :9000** e **Dashboard :4000**.
-3. **☁️ AWS** (laranja): **CloudFront → (OAC) → S3**, com as pastas `manifests/` e `todo/<plataforma>/<versão>/`.
-
-Setas:
-- Host → CloudFront: "manifesto staging/prod (HTTPS, 60 s)".
-- Host → CloudFront, tracejada: "bundle (Fase 9, imutável)".
-- Host → Dashboard: "manifesto dev + telemetria".
-- Host → :9000: "bundle dev".
-- `publish-manifest.sh` / CI → S3: "upload".
-
-Embaixo, uma faixa com a **cadeia de fallback**, da esquerda para a direita:
-
-```text
-manifesto remoto → manifesto embarcado → remote compatível → Todo local
-```
-
-Cada seta da faixa é rotulada com a fase que a dispara: `manifest`, `compatibility`, `load`, `timeout` ou `render`.
