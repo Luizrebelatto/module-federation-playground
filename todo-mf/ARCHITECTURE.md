@@ -383,6 +383,84 @@ O destino fica em `release/cdn.env`, que **não é commitado**, porque o reposit
 | **Rollout %** | `rolloutPercent` + `previous` no manifesto | Fase 6 (ainda não existe) |
 | **Mudança de contrato (major) ou módulo nativo novo** | Publicar um host novo na loja e só então subir `minHostVersion` | O manifesto sozinho não resolve |
 
+### Cenário: mudar a faixa de host (`minHostVersion` / `maxHostVersionExclusive`)
+
+A faixa diz **quais binários da loja** podem carregar o release do remote. O host compara a própria versão (`expo.version` do `app.json`, embarcada no binário) com o intervalo `[minHostVersion, maxHostVersionExclusive)`:
+
+```ts
+// apps/host/release/compatibility.ts
+if (compareVersions(host.version, c.minHostVersion) < 0) problems.push(`host ${host.version} < ${c.minHostVersion}`);
+if (compareVersions(host.version, c.maxHostVersionExclusive) >= 0)
+  problems.push(`host ${host.version} >= ${c.maxHostVersionExclusive}`);
+```
+
+Fora da faixa, o host lança `RemoteLoadError('compatibility')` **antes de baixar o bundle**. A tela abre direto no Todo local, sem "Tentar novamente", e a telemetria registra o motivo.
+
+**A história:** a loja tem o host `1.0.0`. Sai o host `1.1.0`, e o próximo release do remote só funciona nele.
+
+| Passo | Manifesto | Host `1.0.0` | Host `1.1.0` |
+|---|---|---|---|
+| 1. Hoje | `min 1.0.0` · `max 2.0.0` | ✅ carrega o remote | ✅ carrega o remote |
+| 2. Remote novo exige o host novo | `min 1.1.0` · `max 2.0.0` | ⛔ `host 1.0.0 < 1.1.0` → Todo local | ✅ carrega o remote novo |
+| 3. Rollback | volta para `min 1.0.0` | ✅ volta a carregar | ✅ carrega |
+| 4. Sai o host `2.0.0` (contrato 2) | release antigo continua com `max 2.0.0` | ✅ | ✅ (o host `2.0.0` recusa esse release: `host 2.0.0 >= 2.0.0`) |
+
+> Hoje o manifesto tem **um release por canal**. No passo 2, quem está no host `1.0.0` não recebe o release anterior: vai para o Todo local. Servir um release diferente para cada faixa é a Fase 6 (`previous` no manifesto).
+
+#### Como a mudança chega ao app sem build do host
+
+```mermaid
+sequenceDiagram
+  participant Dev as Você
+  participant Repo as release/manifest.*.json
+  participant S3 as S3 + CloudFront
+  participant App as Host (aparelho)
+
+  Dev->>Repo: edita minHostVersion / maxHostVersionExclusive
+  Dev->>Repo: DRY_RUN=1 publish-manifest.sh staging (valida)
+  Dev->>S3: publish-manifest.sh staging<br/>aws s3 cp, Cache-Control: max-age=60
+  Note over S3: CloudFront pode servir o<br/>manifesto antigo por até 60 s
+  App->>S3: próxima abertura do app:<br/>GET /manifests/staging.json (timeout 3 s)
+  S3-->>App: manifesto novo
+  App->>App: assertCompatible: host.version na faixa?
+  alt dentro da faixa
+    App->>S3: baixa o bundle do remote
+  else fora da faixa
+    App->>App: Todo local + telemetria phase "compatibility"
+  end
+```
+
+**Em staging / produção (servidor = S3 + CloudFront):**
+
+```bash
+# 1. editar a faixa
+#    release/manifest.staging.json → remotes.todo.compatibility
+#      "minHostVersion": "1.1.0",
+#      "maxHostVersionExclusive": "2.0.0"
+
+# 2. validar sem tocar na AWS (schema, canal, HTTPS nas entries)
+DRY_RUN=1 release/publish-manifest.sh staging
+
+# 3. publicar (sobrescreve <bucket>/todo-mf/manifests/staging.json)
+release/publish-manifest.sh staging
+
+# 4. conferir o que a CDN está servindo
+curl -s https://d2agf17ues9yij.cloudfront.net/todo-mf/manifests/staging.json | jq '.remotes.todo.compatibility'
+```
+
+- Só o **manifesto** muda. Nenhum bundle é reenviado, e o host não passa pela loja.
+- O CloudFront respeita o `max-age=60`: em até 1 minuto todos os pontos de presença servem o manifesto novo, sem *invalidation*.
+- O app lê o manifesto **uma vez por execução** (`loadReleaseManifest` guarda a Promise). Quem está com o app aberto só vê a mudança ao reabrir.
+- O rollback é o mesmo comando, com os valores antigos.
+
+**Em dev (servidor = dashboard de cenários, porta 4000):**
+
+- **Sem editar arquivo:** o cenário **"Host fora da faixa (min 1.1.0)"** altera `minHostVersion` no manifesto que o dashboard entrega. Com "recarregar o app ao trocar" marcado, o app recarrega sozinho.
+- **Editando o arquivo:** o dashboard relê `release/manifest.dev.json` a cada `GET /manifest.json`. Mude a faixa, salve e clique em **Recarregar app**.
+- **Simulando o host `1.1.0`:** como o host lê a versão do `app.json` no bundle JS, em dev basta mudar `expo.version` para `1.1.0` e recarregar. Em produção, essa versão só muda com um build novo na loja.
+
+O resultado aparece em **Eventos ao vivo**: logo depois do `manifest` vem `telemetry [remote_fallback] todo/TodoWidget · phase "compatibility" · Remote todo-dev-local incompatible: host 1.0.0 < 1.1.0`, e nenhum `request` de bundle. O selo some da Home. Ao abrir a tela Todo, chega o mesmo evento para `todo`.
+
 ---
 
 
