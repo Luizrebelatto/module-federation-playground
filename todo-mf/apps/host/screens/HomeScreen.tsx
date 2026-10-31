@@ -5,11 +5,22 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { FederatedTodoWidget } from '../federation/FederatedTodoWidget';
 import { preloadTodoScreen } from '../federation/preloadTodoScreen';
 import type { RootStackParamList } from '../navigation/AppNavigation';
+import { loadReleaseManifest } from '../release/manifest';
 
 export function HomeScreen({ navigation }: NativeStackScreenProps<RootStackParamList, 'Home'>) {
   useEffect(() => {
     void preloadTodoScreen();
   }, []);
+
+  // Em dev, o cenário do dashboard pode pedir para abrir a tela Todo direto.
+  useEffect(() => {
+    if (!__DEV__) return;
+    loadReleaseManifest()
+      .then((manifest) => {
+        if (manifest.dev?.openScreen === 'Todo') navigation.navigate('Todo');
+      })
+      .catch(() => undefined);
+  }, [navigation]);
 
   return (
     <View style={styles.container}>

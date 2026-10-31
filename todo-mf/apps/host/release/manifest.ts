@@ -27,6 +27,8 @@ export type ReleaseManifest = {
   schema: 1;
   channel: string;
   remotes: Record<string, RemoteRelease>;
+  /** Só o dashboard de cenários manda (dev): tela que o app abre ao iniciar. */
+  dev?: { openScreen?: string };
 };
 
 export type ResolvedRemote = Omit<RemoteRelease, 'entries'> & { name: string; entry: string };
