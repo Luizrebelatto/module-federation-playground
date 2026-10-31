@@ -1,4 +1,4 @@
-# Todo federado com Expo, React Native e Re.Pack
+# Todo com Expo, React Native e Re.Pack
 
 Guia de ponta a ponta para estudar um app com **host + remote**, estado compartilhado, Module Federation, compatibilidade, fallback, isolamento de falhas, rollback e carregamento do remote por CDN.
 
