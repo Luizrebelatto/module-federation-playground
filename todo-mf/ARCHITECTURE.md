@@ -468,3 +468,9 @@ O resultado aparece em **Eventos ao vivo**: logo depois do `manifest` vem `telem
 https://github.com/user-attachments/assets/5c3397dd-019b-41f6-9304-60cbb1359fc8
 
 
+
+https://youtu.be/1VVwEp2Hrlg
+
+
+
+
