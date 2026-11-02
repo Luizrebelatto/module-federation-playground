@@ -43,8 +43,8 @@ export function TodoScreen() {
             store={store}
             banner={
               <View style={styles.banner}>
-                <Text style={styles.bannerText}>Versão local (remote indisponível)</Text>
-                {canRetry && <Button title="Tentar novamente" onPress={() => setAttempt((n) => n + 1)} />}
+                <Text style={styles.bannerText}>Local version (remote unavailable)</Text>
+                {canRetry && <Button title="Try again" onPress={() => setAttempt((n) => n + 1)} />}
               </View>
             }
           />

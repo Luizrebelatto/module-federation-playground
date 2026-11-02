@@ -282,20 +282,20 @@ export function LocalTodoScreen({ store, banner }: Props) {
       <View style={styles.form}>
         <TextInput
           style={styles.input}
-          placeholder="Nova tarefa"
+          placeholder="New task"
           value={title}
           onChangeText={setTitle}
           onSubmitEditing={submit}
           returnKeyType="done"
         />
         <Pressable style={styles.addButton} onPress={submit} accessibilityRole="button">
-          <Text style={styles.addButtonText}>Adicionar</Text>
+          <Text style={styles.addButtonText}>Add</Text>
         </Pressable>
       </View>
       <FlatList
         data={todos}
         keyExtractor={(todo) => todo.id}
-        ListEmptyComponent={<Text style={styles.empty}>Nenhuma tarefa ainda.</Text>}
+        ListEmptyComponent={<Text style={styles.empty}>No tasks yet.</Text>}
         renderItem={({ item }) => (
           <View style={styles.row}>
             <Pressable
@@ -309,7 +309,7 @@ export function LocalTodoScreen({ store, banner }: Props) {
               </Text>
             </Pressable>
             <Pressable onPress={() => void store.remove(item.id)} accessibilityRole="button" hitSlop={8}>
-              <Text style={styles.remove}>Remover</Text>
+              <Text style={styles.remove}>Remove</Text>
             </Pressable>
           </View>
         )}
@@ -369,8 +369,8 @@ import type { RootStackParamList } from '../navigation/AppNavigation';
 export function HomeScreen({ navigation }: NativeStackScreenProps<RootStackParamList, 'Home'>) {
   return (
     <View style={styles.container}>
-      <Button title="Todo (remote, com fallback)" onPress={() => navigation.navigate('Todo')} />
-      <Button title="Todo local" onPress={() => navigation.navigate('LocalTodo')} />
+      <Button title="Todo (remote, with fallback)" onPress={() => navigation.navigate('Todo')} />
+      <Button title="Local Todo" onPress={() => navigation.navigate('LocalTodo')} />
     </View>
   );
 }
@@ -403,7 +403,7 @@ export function AppNavigation() {
       <Stack.Navigator>
         <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Host' }} />
         <Stack.Screen name="Todo" component={TodoScreen} options={{ title: 'Todo' }} />
-        <Stack.Screen name="LocalTodo" component={LocalTodoRoute} options={{ title: 'Todo local' }} />
+        <Stack.Screen name="LocalTodo" component={LocalTodoRoute} options={{ title: 'Local Todo' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -947,8 +947,8 @@ export function TodoScreen() {
             store={store}
             banner={
               <View style={styles.banner}>
-                <Text style={styles.bannerText}>Versão local (remote indisponível)</Text>
-                {canRetry && <Button title="Tentar novamente" onPress={() => setAttempt((n) => n + 1)} />}
+                <Text style={styles.bannerText}>Local version (remote unavailable)</Text>
+                {canRetry && <Button title="Try again" onPress={() => setAttempt((n) => n + 1)} />}
               </View>
             }
           />
@@ -981,8 +981,8 @@ Finally, in `AppNavigation`, point the `Todo` route to this `TodoScreen`.
 - **The `releaseId` is passed to the remote**: the remote can also log and display its own version.
 
 **How to verify.** This is the good part: **the fallback can be tested without having the remote.**
-1. With nothing running on port 9000, open "Todo (remote, com fallback)". The spinner appears, then the local screen with the yellow notice, and the log shows `[remote_fallback] { phase: 'load', ... }`.
-2. "Tentar novamente" appears twice and then disappears.
+1. With nothing running on port 9000, open "Todo (remote, with fallback)". The spinner appears, then the local screen with the yellow notice, and the log shows `[remote_fallback] { phase: 'load', ... }`.
+2. "Try again" appears twice and then disappears.
 3. In the manifest, `"enabled": false` falls straight to the local screen, with no retry button (`phase: 'manifest'`).
 4. In the manifest, `"reactNative": "0.0.0"` gives `phase: 'compatibility'`, with no retry.
 5. Add tasks on the local screen, go into the Todo route and come back: the tasks are still there (the store is the same).

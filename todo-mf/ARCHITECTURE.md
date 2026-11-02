@@ -1,82 +1,82 @@
-# Arquitetura — todo-mf
+# Architecture — todo-mf
 
-App de tarefas em React Native (Expo + Re.Pack) dividido em **host** e **remote** com Module Federation v2. O host é o app instalado pela loja. O remote `todo` é código JavaScript baixado em runtime. Se o remote falhar, o host mostra uma tela Todo própria. Um **manifesto por canal** (dev / staging / produção), servido por uma **CDN** (S3 + CloudFront), decide qual versão do remote cada app carrega.
+A tasks app in React Native (Expo + Re.Pack) split into a **host** and a **remote** with Module Federation v2. The host is the app installed from the app store. The `todo` remote is JavaScript code downloaded at runtime. If the remote fails, the host shows its own Todo screen. A **manifest per channel** (dev / staging / production), served by a **CDN** (S3 + CloudFront), decides which version of the remote each app loads.
 
-> O plano completo, passo a passo, está em [`README.md`](./README.md) e [`apps/README.md`](./apps/README.md). Este documento descreve **como as peças se encaixam**.
+> The full step-by-step plan is in [`README.md`](./README.md) and [`apps/README.md`](./apps/README.md). This document describes **how the pieces fit together**.
 
-> **Diagramas:** os blocos `mermaid` aparecem renderizados no GitHub. Para editar no Excalidraw: **More tools → Mermaid to Excalidraw**, e cole o conteúdo do bloco.
+> **Diagrams:** the `mermaid` blocks render on GitHub. To edit them in Excalidraw: **More tools → Mermaid to Excalidraw**, and paste the block's content.
 
 ---
 
-## 1. Visão geral do sistema
+## 1. System overview
 
 ```mermaid
 flowchart LR
-  subgraph Device["📱 Aparelho (iOS / Android)"]
-    Host["Host app<br/>binário da loja<br/>React, React Native, Store"]
+  subgraph Device["📱 Device (iOS / Android)"]
+    Host["Host app<br/>app store binary<br/>React, React Native, Store"]
   end
 
-  subgraph Dev["💻 Máquina de dev"]
+  subgraph Dev["💻 Dev machine"]
     RemoteDev["todo-remote dev server<br/>:9000"]
-    Dashboard["Dashboard de cenários<br/>:4000"]
+    Dashboard["Scenario dashboard<br/>:4000"]
   end
 
   subgraph AWS["☁️ AWS"]
     CF["CloudFront<br/>d2agf17ues9yij.cloudfront.net"]
-    S3[("S3 privado<br/>todo-mf/")]
+    S3[("private S3<br/>todo-mf/")]
     CF -- "OAC" --> S3
   end
 
-  Host -- "manifesto dev" --> Dashboard
-  Host -- "telemetria dev" --> Dashboard
-  Host -- "bundle do remote (dev)" --> RemoteDev
-  Host -- "manifesto staging / produção" --> CF
-  Host -. "bundle do remote (Fase 9)" .-> CF
+  Host -- "dev manifest" --> Dashboard
+  Host -- "dev telemetry" --> Dashboard
+  Host -- "remote bundle (dev)" --> RemoteDev
+  Host -- "staging / production manifest" --> CF
+  Host -. "remote bundle (Phase 9)" .-> CF
 ```
 
-| Peça | Onde | Papel |
+| Piece | Where | Role |
 |---|---|---|
-| **Host** | `apps/host` | App instalado. Cria o store, a navegação e a tela Todo local de fallback. Lê o manifesto, checa compatibilidade e carrega o remote. |
-| **Remote `todo`** | `apps/todo-remote` | Container MF `todo_remote` que expõe `./TodoScreen` e `./TodoWidget`. Não tem estado próprio: recebe o store por props. |
-| **Contrato** | `packages/todo-contract` | Tipos `Todo`, `TodoStore` e `TodoRemoteProps`, mais `CONTRACT_VERSION`. É a única coisa que host e remote compartilham em código. |
-| **Manifestos** | `release/manifest.*.json` | Dizem, por canal, se o remote está ligado, a URL do bundle por plataforma e as regras de compatibilidade. |
-| **CDN** | AWS S3 + CloudFront | Serve os manifestos de staging e produção (hoje) e os bundles do remote (Fase 9). |
-| **Dashboard de cenários** | repo `test-module-federation` (porta 4000) | Só em dev. Serve um manifesto alterado por cenário (falhas simuladas) e recebe a telemetria. |
+| **Host** | `apps/host` | The installed app. Creates the store, the navigation and the local fallback Todo screen. Reads the manifest, checks compatibility and loads the remote. |
+| **Remote `todo`** | `apps/todo-remote` | MF container `todo_remote` that exposes `./TodoScreen` and `./TodoWidget`. It has no state of its own: it receives the store through props. |
+| **Contract** | `packages/todo-contract` | The `Todo`, `TodoStore` and `TodoRemoteProps` types, plus `CONTRACT_VERSION`. It is the only thing the host and the remote share in code. |
+| **Manifests** | `release/manifest.*.json` | They state, per channel, whether the remote is enabled, the bundle URL per platform and the compatibility rules. |
+| **CDN** | AWS S3 + CloudFront | Serves the staging and production manifests (today) and the remote bundles (Phase 9). |
+| **Scenario dashboard** | `test-module-federation` repo (port 4000) | Dev only. Serves a manifest altered per scenario (simulated failures) and receives the telemetry. |
 
 ---
 
-## 2. Estrutura do repositório
+## 2. Repository structure
 
 ```text
 todo-mf/
 ├── apps/
-│   ├── host/                       # app Expo + Re.Pack (o binário da loja)
-│   │   ├── App.tsx                 # cria o TodoStore e monta Provider + navegação
+│   ├── host/                       # Expo + Re.Pack app (the app store binary)
+│   │   ├── App.tsx                 # creates the TodoStore and mounts Provider + navigation
 │   │   ├── navigation/             # stack: Home, Todo (remote), LocalTodo
-│   │   ├── screens/                # HomeScreen, TodoScreen (federada), LocalTodoScreen (fallback)
-│   │   ├── store/                  # todoStore (zustand vanilla, escrita serializada) + Context
-│   │   ├── federation/             # loader MF, Error Boundary, erros por fase, telemetria, preload
-│   │   ├── release/                # manifesto por canal, compatibilidade, URL do dashboard
+│   │   ├── screens/                # HomeScreen, TodoScreen (federated), LocalTodoScreen (fallback)
+│   │   ├── store/                  # todoStore (zustand vanilla, serialized writes) + Context
+│   │   ├── federation/             # MF loader, Error Boundary, errors by phase, telemetry, preload
+│   │   ├── release/                # manifest per channel, compatibility, dashboard URL
 │   │   ├── rspack.config.mjs       # MF host + DefinePlugin(__RELEASE_CHANNEL__)
-│   │   └── __tests__/              # store, loader, manifesto e compatibilidade
-│   └── todo-remote/                # container MF "todo_remote"
-│       ├── src/TodoScreen.tsx      # tela completa
-│       ├── src/TodoWidget.tsx      # badge da Home
+│   │   └── __tests__/              # store, loader, manifest and compatibility
+│   └── todo-remote/                # MF container "todo_remote"
+│       ├── src/TodoScreen.tsx      # full screen
+│       ├── src/TodoWidget.tsx      # Home badge
 │       └── rspack.config.mjs       # exposes + shared (react, react-native)
 ├── packages/
-│   └── todo-contract/              # tipos + CONTRACT_VERSION
+│   └── todo-contract/              # types + CONTRACT_VERSION
 └── release/
-    ├── manifest.dev.json           # aponta para localhost:9000
-    ├── manifest.staging.json       # embarcado de staging (enabled: false)
-    ├── manifest.prod.json          # embarcado de produção (enabled: false)
-    ├── publish-manifest.sh         # valida e publica o manifesto no S3
-    ├── cdn.env.example             # modelo do destino da CDN
-    └── cdn.env                     # bucket/conta reais (não commitado)
+    ├── manifest.dev.json           # points to localhost:9000
+    ├── manifest.staging.json       # embedded staging (enabled: false)
+    ├── manifest.prod.json          # embedded production (enabled: false)
+    ├── publish-manifest.sh         # validates and publishes the manifest to S3
+    ├── cdn.env.example             # template for the CDN target
+    └── cdn.env                     # real bucket/account (not committed)
 ```
 
 ---
 
-## 3. Dentro do host
+## 3. Inside the host
 
 ```mermaid
 flowchart TB
@@ -84,11 +84,11 @@ flowchart TB
   Provider --> Nav["AppNavigation"]
 
   Nav --> Home["HomeScreen"]
-  Nav --> TodoScreen["TodoScreen<br/>remote com fallback"]
-  Nav --> LocalRoute["LocalTodo<br/>sempre local"]
+  Nav --> TodoScreen["TodoScreen<br/>remote with fallback"]
+  Nav --> LocalRoute["LocalTodo<br/>always local"]
 
-  Home --> Widget["FederatedTodoWidget<br/>falhou → some"]
-  Home --> Preload["preloadTodoScreen<br/>esquenta o cache"]
+  Home --> Widget["FederatedTodoWidget<br/>failed → disappears"]
+  Home --> Preload["preloadTodoScreen<br/>warms the cache"]
 
   subgraph Release["release/"]
     Manifest["manifest.ts<br/>loadReleaseManifest + resolveRemote"]
@@ -105,43 +105,43 @@ flowchart TB
   Widget --> Manifest
   Preload --> Manifest
   TodoScreen --> Boundary
-  Boundary -- "erro" --> Fallback["LocalTodoScreen<br/>+ banner + Tentar novamente"]
-  Boundary -- "erro" --> Telemetry
+  Boundary -- "error" --> Fallback["LocalTodoScreen<br/>+ banner + Try again"]
+  Boundary -- "error" --> Telemetry
 ```
 
-### Estado compartilhado
-Um único `TodoStore`, criado no host, alimenta as telas locais e as remotas. Detalhes na [seção 4](#4-estado-compartilhado-store-e-contexto).
+### Shared state
+A single `TodoStore`, created in the host, feeds both the local and the remote screens. Details in [section 4](#4-shared-state-store-and-context).
 
-### Dependências compartilhadas (share scope do MF)
+### Shared dependencies (MF share scope)
 | Lib | Host | Remote |
 |---|---|---|
-| `react` 19.2.3 | `singleton`, `eager: true` (fornece) | `singleton`, `eager: false` (usa a do host) |
+| `react` 19.2.3 | `singleton`, `eager: true` (provides) | `singleton`, `eager: false` (uses the host's) |
 | `react-native` 0.86.3 | `singleton`, `eager: true` | `singleton`, `eager: false` |
 
-Módulo nativo **não** vem pela federação. Se o remote precisar de algo nativo, o host precisa ser publicado na loja antes.
+A native module does **not** come through federation. If the remote needs something native, the host has to be published to the app store first.
 
 ---
 
-## 4. Estado compartilhado: store e contexto
+## 4. Shared state: store and context
 
-Existe **uma instância** de `TodoStore` no app inteiro. Ela é criada no host e lida por todas as telas Todo, locais e remotas. Por isso uma tarefa adicionada na tela remota aparece na tela local, no fallback e no widget da Home, e vice-versa.
+There is **one instance** of `TodoStore` in the whole app. It is created in the host and read by every Todo screen, local and remote. That is why a task added on the remote screen shows up on the local screen, in the fallback and in the Home widget, and vice versa.
 
 ```mermaid
 flowchart TB
   subgraph Host["Host (apps/host)"]
-    Zustand["zustand/vanilla<br/>createTodoState()<br/>estado + fila de escrita"]
-    Adapter["createTodoStore()<br/>adapta para o contrato TodoStore"]
+    Zustand["zustand/vanilla<br/>createTodoState()<br/>state + write queue"]
+    Adapter["createTodoStore()<br/>adapts to the TodoStore contract"]
     AppTsx["App.tsx<br/>const todoStore = createTodoStore()"]
     Ctx["TodoStoreProvider<br/>(React Context)"]
 
     Zustand --> Adapter --> AppTsx --> Ctx
 
     Ctx -- "useTodoStore()" --> LocalRoute["LocalTodoRoute"]
-    Ctx -- "useTodoStore()" --> TodoScreen["TodoScreen<br/>(remote com fallback)"]
+    Ctx -- "useTodoStore()" --> TodoScreen["TodoScreen<br/>(remote with fallback)"]
     Ctx -- "useTodoStore()" --> Widget["FederatedTodoWidget"]
 
-    LocalRoute -- "prop store" --> Local1["LocalTodoScreen"]
-    TodoScreen -- "prop store<br/>(se o remote falhar)" --> Local2["LocalTodoScreen<br/>+ banner"]
+    LocalRoute -- "store prop" --> Local1["LocalTodoScreen"]
+    TodoScreen -- "store prop<br/>(if the remote fails)" --> Local2["LocalTodoScreen<br/>+ banner"]
   end
 
   subgraph Remote["Remote todo (apps/todo-remote)"]
@@ -149,13 +149,13 @@ flowchart TB
     RWidget["TodoWidget"]
   end
 
-  TodoScreen -- "prop store + releaseId<br/>(TodoRemoteProps)" --> RScreen
-  Widget -- "prop store + releaseId" --> RWidget
+  TodoScreen -- "store + releaseId props<br/>(TodoRemoteProps)" --> RScreen
+  Widget -- "store + releaseId props" --> RWidget
 ```
 
-### As três camadas
+### The three layers
 
-**1. Estado: `store/todoStore.ts`.** O estado fica num store `zustand/vanilla`, que não depende de React. Toda escrita passa por `mutate`, que encadeia a operação numa fila de Promises:
+**1. State: `store/todoStore.ts`.** The state lives in a `zustand/vanilla` store, which does not depend on React. Every write goes through `mutate`, which chains the operation onto a queue of Promises:
 
 ```ts
 const mutate = (update: (current: readonly Todo[]) => readonly Todo[]) => {
@@ -170,11 +170,11 @@ const mutate = (update: (current: readonly Todo[]) => readonly Todo[]) => {
 };
 ```
 
-- Cada `add` / `toggle` / `remove` lê o snapshot **mais recente** dentro da fila. Dois toques simultâneos rodam um depois do outro e nenhum sobrescreve o outro.
-- Se a operação não muda nada (por exemplo, `toggle` de um id inexistente), `update` devolve o mesmo array e o zustand não notifica ninguém.
-- Uma operação que falhe não trava a fila: `queue` segue a partir do `catch`.
+- Each `add` / `toggle` / `remove` reads the **most recent** snapshot inside the queue. Two simultaneous taps run one after the other and neither overwrites the other.
+- If the operation changes nothing (for example, a `toggle` of a nonexistent id), `update` returns the same array and zustand notifies no one.
+- An operation that fails does not stall the queue: `queue` continues from the `catch`.
 
-**2. Contrato: `createTodoStore()`.** O zustand não sai do host. `createTodoStore()` expõe só a interface `TodoStore` de `@todo-mf/todo-contract`:
+**2. Contract: `createTodoStore()`.** zustand never leaves the host. `createTodoStore()` exposes only the `TodoStore` interface from `@todo-mf/todo-contract`:
 
 ```ts
 return {
@@ -186,11 +186,11 @@ return {
 };
 ```
 
-- `getSnapshot` devolve sempre a mesma referência enquanto nada muda, como `useSyncExternalStore` exige.
-- `subscribe` descarta os argumentos `(state, prev)` do zustand: o contrato é `() => void`.
-- O remote nunca importa zustand nem nada de `store/`. Trocar a implementação (por exemplo, para adicionar persistência na Fase 4) não muda o contrato.
+- `getSnapshot` always returns the same reference while nothing changes, as `useSyncExternalStore` requires.
+- `subscribe` drops zustand's `(state, prev)` arguments: the contract is `() => void`.
+- The remote never imports zustand or anything from `store/`. Swapping the implementation (for example, to add persistence in Phase 4) does not change the contract.
 
-**3. Distribuição: `store/TodoStoreContext.tsx`.** `App.tsx` cria o store **uma vez, fora do componente**, e o coloca num Context:
+**3. Distribution: `store/TodoStoreContext.tsx`.** `App.tsx` creates the store **once, outside the component**, and puts it in a Context:
 
 ```tsx
 const todoStore = createTodoStore();
@@ -204,24 +204,24 @@ export default function App() {
 }
 ```
 
-- `useTodoStore()` pega a instância do Context. Ele lança erro se for usado fora do Provider.
-- `useTodos(store)` é o `useSyncExternalStore(store.subscribe, store.getSnapshot)` do host.
+- `useTodoStore()` takes the instance from the Context. It throws if used outside the Provider.
+- `useTodos(store)` is the host's `useSyncExternalStore(store.subscribe, store.getSnapshot)`.
 
-### Quem lê o store, e como
+### Who reads the store, and how
 
-| Componente | Roda em | Como recebe o store | Como lê |
+| Component | Runs in | How it receives the store | How it reads |
 |---|---|---|---|
-| `LocalTodoRoute` → `LocalTodoScreen` | host | `useTodoStore()` → prop `store` | `useTodos(store)` |
-| `TodoScreen` (fallback `LocalTodoScreen`) | host | `useTodoStore()` → prop `store` | `useTodos(store)` |
-| `TodoScreen` remota | remote | prop `store` (`TodoRemoteProps`) | `useSyncExternalStore(...)` |
-| `TodoWidget` remoto | remote | prop `store` (`TodoRemoteProps`) | `useSyncExternalStore(...)` |
+| `LocalTodoRoute` → `LocalTodoScreen` | host | `useTodoStore()` → `store` prop | `useTodos(store)` |
+| `TodoScreen` (fallback `LocalTodoScreen`) | host | `useTodoStore()` → `store` prop | `useTodos(store)` |
+| remote `TodoScreen` | remote | `store` prop (`TodoRemoteProps`) | `useSyncExternalStore(...)` |
+| remote `TodoWidget` | remote | `store` prop (`TodoRemoteProps`) | `useSyncExternalStore(...)` |
 
-### Por que Context no host e props no remote
-- **Dentro do host**, o Context evita passar o store por toda a navegação.
-- **No limite federado**, o store vai **por prop**. O remote é outro bundle: se ele importasse `TodoStoreContext`, teria a própria cópia do módulo e um Context diferente, sem Provider, e `useTodoStore()` lançaria erro. Com a prop, só o tipo do contrato precisa coincidir.
-- `react` e `react-native` são `singleton` no share scope, então o `useSyncExternalStore` do remote é o mesmo React do host e se inscreve no mesmo store.
+### Why Context in the host and props in the remote
+- **Inside the host**, the Context avoids passing the store through the whole navigation.
+- **At the federated boundary**, the store goes **through a prop**. The remote is another bundle: if it imported `TodoStoreContext`, it would have its own copy of the module and a different Context, with no Provider, and `useTodoStore()` would throw. With the prop, only the contract type has to match.
+- `react` and `react-native` are `singleton` in the share scope, so the remote's `useSyncExternalStore` is the same React as the host's and subscribes to the same store.
 
-### Uma escrita, todas as telas atualizadas
+### One write, every screen updated
 
 ```mermaid
 sequenceDiagram
@@ -230,93 +230,93 @@ sequenceDiagram
   participant W as TodoWidget (remote, Home)
   participant L as LocalTodoScreen (host)
 
-  RS->>S: store.add("comprar pão")
-  S->>S: mutate: entra na fila, set({ todos: next })
-  S-->>RS: listener → novo snapshot
-  S-->>W: listener → "1 tarefa(s) pendente(s)"
-  S-->>L: listener → lista com "comprar pão"
+  RS->>S: store.add("buy bread")
+  S->>S: mutate: enters the queue, set({ todos: next })
+  S-->>RS: listener → new snapshot
+  S-->>W: listener → "1 task(s) pending"
+  S-->>L: listener → list with "buy bread"
 ```
 
-Como local e remote leem a mesma instância, a troca para o fallback no meio da sessão (remote cai, Error Boundary assume) mantém as tarefas que o usuário já tinha.
+Because local and remote read the same instance, switching to the fallback mid-session (the remote goes down, the Error Boundary takes over) keeps the tasks the user already had.
 
-### Limites atuais
-- O estado vive **só em memória**: fechar o app perde as tarefas. A persistência é a Fase 4.
-- Mudar a forma de `TodoStore` é mudança de **contrato**: sobe `CONTRACT_VERSION` e, no major, o remote antigo passa a ser recusado por `assertCompatible`.
-- Testes em `apps/host/__tests__/todoStore.test.ts`: `add` simultâneos mantêm ordem, dois `toggle` seguidos voltam ao original e `getSnapshot` mantém a referência quando nada muda.
+### Current limits
+- State lives **in memory only**: closing the app loses the tasks. Persistence is Phase 4.
+- Changing the shape of `TodoStore` is a **contract** change: it bumps `CONTRACT_VERSION` and, on a major, the old remote starts being rejected by `assertCompatible`.
+- Tests in `apps/host/__tests__/todoStore.test.ts`: simultaneous `add`s keep their order, two `toggle`s in a row return to the original, and `getSnapshot` keeps the reference when nothing changes.
 
 ---
 
-## 5. Fluxo ao abrir a tela Todo
+## 5. Flow when opening the Todo screen
 
 ```mermaid
 sequenceDiagram
-  participant U as Usuário
+  participant U as User
   participant TS as TodoScreen
   participant M as manifest.ts
   participant CDN as CDN / Dashboard
   participant C as compatibility.ts
-  participant L as loader MF
+  participant L as MF loader
   participant R as Remote todo
 
-  U->>TS: abre "Todo"
+  U->>TS: opens "Todo"
   TS->>M: loadReleaseManifest()
-  M->>CDN: GET manifesto do canal, timeout 3s
-  alt baixou e é válido do mesmo canal
-    CDN-->>M: manifesto remoto
-  else falhou, inválido ou outro canal
-    M->>M: usa o manifesto embarcado
+  M->>CDN: GET the channel's manifest, 3s timeout
+  alt downloaded and valid for the same channel
+    CDN-->>M: remote manifest
+  else failed, invalid or another channel
+    M->>M: uses the embedded manifest
   end
-  M-->>TS: resolveRemote("todo"): enabled, entry da plataforma
+  M-->>TS: resolveRemote("todo"): enabled, platform entry
   TS->>C: assertCompatible(release)
-  TS->>L: loadTodoScreen(release), timeout 10s
+  TS->>L: loadTodoScreen(release), 10s timeout
   L->>R: registerRemotes + loadRemote("todo_remote/TodoScreen")
-  R-->>L: componente
-  L-->>TS: TodoScreen remota
-  TS->>R: render com store e releaseId
-  Note over TS: qualquer erro → Error Boundary →<br/>LocalTodoScreen + telemetria
+  R-->>L: component
+  L-->>TS: remote TodoScreen
+  TS->>R: render with store and releaseId
+  Note over TS: any error → Error Boundary →<br/>LocalTodoScreen + telemetry
 ```
 
-### Fases de falha
-Qualquer erro vira um `RemoteLoadError` com a fase em que aconteceu. A fase decide se o botão "Tentar novamente" aparece (no máximo 2 tentativas).
+### Failure phases
+Any error becomes a `RemoteLoadError` with the phase in which it happened. The phase decides whether the "Try again" button appears (at most 2 retries).
 
-| Fase | Quando acontece | Retry? |
+| Phase | When it happens | Retry? |
 |---|---|---|
-| `manifest` | Remote ausente, `enabled: false`, sem entry para a plataforma, schema inválido | ❌ |
-| `compatibility` | `runtimeApi`, major do contrato, React, RN ou versão do host fora da faixa | ❌ |
-| `load` | Bundle 404, erro de rede, módulo sem `default` | ✅ |
-| `timeout` | Carga do remote acima de 10 s | ✅ |
-| `render` | O remote quebrou ao renderizar | ✅ |
+| `manifest` | Remote missing, `enabled: false`, no entry for the platform, invalid schema | ❌ |
+| `compatibility` | `runtimeApi`, contract major, React, RN or host version out of range | ❌ |
+| `load` | Bundle 404, network error, module without `default` | ✅ |
+| `timeout` | Remote load above 10 s | ✅ |
+| `render` | The remote broke while rendering | ✅ |
 
-Outros pontos do fluxo:
-- **Cache do manifesto:** o manifesto é buscado uma vez por execução do app.
-- **Dedupe do loader:** pedidos simultâneos para o mesmo `container@releaseId/módulo` compartilham uma Promise.
-- **Troca de bundle:** se o manifesto mudar o `entry`, o loader re-registra o container com `force`. É assim que um rollback funciona sem reinstalar o app.
+Other points in the flow:
+- **Manifest cache:** the manifest is fetched once per app run.
+- **Loader dedupe:** simultaneous requests for the same `container@releaseId/module` share one Promise.
+- **Bundle swap:** if the manifest changes the `entry`, the loader re-registers the container with `force`. This is how a rollback works without reinstalling the app.
 
 ---
 
-## 6. Canais (dev / staging / produção)
+## 6. Channels (dev / staging / production)
 
-O canal é escolhido **no build**: `RELEASE_CHANNEL=staging` vira a constante `__RELEASE_CHANNEL__` (via `DefinePlugin`), que seleciona a URL do manifesto e o manifesto embarcado.
+The channel is chosen **at build time**: `RELEASE_CHANNEL=staging` becomes the `__RELEASE_CHANNEL__` constant (via `DefinePlugin`), which selects the manifest URL and the embedded manifest.
 
 ```mermaid
 flowchart LR
-  Env["RELEASE_CHANNEL<br/>no build"] --> Define["DefinePlugin<br/>__RELEASE_CHANNEL__"]
+  Env["RELEASE_CHANNEL<br/>at build time"] --> Define["DefinePlugin<br/>__RELEASE_CHANNEL__"]
   Define --> Channels{"CHANNELS"}
-  Channels -- dev --> D["URL: dashboard :4000 só em __DEV__<br/>embarcado: manifest.dev.json"]
-  Channels -- staging --> S["URL: CDN /manifests/staging.json<br/>embarcado: manifest.staging.json"]
-  Channels -- production --> P["URL: CDN /manifests/production.json<br/>embarcado: manifest.prod.json"]
+  Channels -- dev --> D["URL: dashboard :4000 only in __DEV__<br/>embedded: manifest.dev.json"]
+  Channels -- staging --> S["URL: CDN /manifests/staging.json<br/>embedded: manifest.staging.json"]
+  Channels -- production --> P["URL: CDN /manifests/production.json<br/>embedded: manifest.prod.json"]
 ```
 
-| Canal | Manifesto remoto | Manifesto embarcado (se o remoto falhar) |
+| Channel | Remote manifest | Embedded manifest (if the remote one fails) |
 |---|---|---|
-| `dev` | Dashboard de cenários (`localhost:4000` / `10.0.2.2:4000`), só em `__DEV__` | `manifest.dev.json`: remote ligado em `localhost:9000` |
+| `dev` | Scenario dashboard (`localhost:4000` / `10.0.2.2:4000`), only in `__DEV__` | `manifest.dev.json`: remote enabled at `localhost:9000` |
 | `staging` | `https://d2agf17ues9yij.cloudfront.net/todo-mf/manifests/staging.json` | `manifest.staging.json`: `enabled: false` |
 | `production` | `https://d2agf17ues9yij.cloudfront.net/todo-mf/manifests/production.json` | `manifest.prod.json`: `enabled: false` |
 
-Regras do canal:
-- **Manifesto de outro canal é recusado.** Um manifesto de staging publicado no caminho de produção cai no embarcado, em vez de mandar usuários reais para um build de teste.
-- **Os embarcados de staging e produção nascem desligados.** Sem CDN, o app usa o Todo local, que é o comportamento seguro.
-- **Valor inválido em `RELEASE_CHANNEL` quebra o build.**
+Channel rules:
+- **A manifest from another channel is rejected.** A staging manifest published to the production path falls back to the embedded one, instead of sending real users to a test build.
+- **The staging and production embedded manifests are born disabled.** With no CDN, the app uses the local Todo, which is the safe behavior.
+- **An invalid value in `RELEASE_CHANNEL` breaks the build.**
 
 ---
 
@@ -324,11 +324,11 @@ Regras do canal:
 
 ```mermaid
 flowchart LR
-  Dev["publish-manifest.sh<br/>perfil AWS todo-mf"] -- "aws s3 cp<br/>Cache-Control: max-age=60" --> S3
-  CI["CI / GitHub Actions<br/>Fase 9"] -. "aws s3 sync<br/>immutable, 1 ano" .-> S3
+  Dev["publish-manifest.sh<br/>AWS profile todo-mf"] -- "aws s3 cp<br/>Cache-Control: max-age=60" --> S3
+  CI["CI / GitHub Actions<br/>Phase 9"] -. "aws s3 sync<br/>immutable, 1 year" .-> S3
 
   subgraph AWS["AWS"]
-    S3[("S3 bucket privado<br/>Block Public Access<br/>versionamento ligado")]
+    S3[("private S3 bucket<br/>Block Public Access<br/>versioning enabled")]
     CF["CloudFront<br/>HTTPS + CachingOptimized"]
     CF -- "Origin Access Control" --> S3
   end
@@ -336,56 +336,56 @@ flowchart LR
   App["📱 Host"] -- "HTTPS" --> CF
 ```
 
-### Peças
-| Peça | Configuração | Por quê |
+### Pieces
+| Piece | Configuration | Why |
 |---|---|---|
-| **S3** | Privado, *Block all public access*, versionamento ligado | Ninguém lê o bucket direto. Um arquivo sobrescrito por engano pode ser recuperado. |
-| **OAC** | Só o CloudFront tem permissão de leitura (bucket policy com `cloudfront.amazonaws.com`) | O bucket continua privado. Arquivo inexistente responde **403**, não 404. |
-| **CloudFront** | *Redirect HTTP to HTTPS*, cache policy `CachingOptimized`, sem WAF | Entrega HTTPS e cache perto do usuário. O cache respeita o `Cache-Control` de cada arquivo, então nenhuma *invalidation* é necessária. |
-| **IAM** | Usuário `todo-mf-cli` com escrita só em `<bucket>/todo-mf/*` | Uma credencial vazada só afeta este prefixo. |
+| **S3** | Private, *Block all public access*, versioning enabled | No one reads the bucket directly. A file overwritten by mistake can be recovered. |
+| **OAC** | Only CloudFront has read permission (bucket policy with `cloudfront.amazonaws.com`) | The bucket stays private. A nonexistent file answers **403**, not 404. |
+| **CloudFront** | *Redirect HTTP to HTTPS*, `CachingOptimized` cache policy, no WAF | Delivers HTTPS and caches close to the user. The cache honors each file's `Cache-Control`, so no *invalidation* is needed. |
+| **IAM** | `todo-mf-cli` user with write access only to `<bucket>/todo-mf/*` | A leaked credential only affects this prefix. |
 
-### Layout do bucket
+### Bucket layout
 ```text
 <bucket>/todo-mf/
 ├── manifests/
-│   ├── staging.json            # mutável · Cache-Control: public, max-age=60
-│   └── production.json         # mutável · Cache-Control: public, max-age=60
-└── todo/                       # Fase 9
-    ├── ios/<versão>/todo_remote.container.js.bundle + chunks + assets
-    └── android/<versão>/...    # imutável · Cache-Control: public, max-age=31536000, immutable
+│   ├── staging.json            # mutable · Cache-Control: public, max-age=60
+│   └── production.json         # mutable · Cache-Control: public, max-age=60
+└── todo/                       # Phase 9
+    ├── ios/<version>/todo_remote.container.js.bundle + chunks + assets
+    └── android/<version>/...    # immutable · Cache-Control: public, max-age=31536000, immutable
 ```
 
-### Regras
-- **O manifesto é o único arquivo mutável.** Com cache de 60 s, um rollback ou kill switch chega rápido aos clientes.
-- **Bundles ficam em pastas por versão e nunca são sobrescritos.** Versão nova vai para uma pasta nova.
-- **O manifesto sobe sempre por último**, depois dos bundles. Assim, nenhum cliente recebe uma URL que ainda não existe.
-- **Sourcemaps** vão para um lugar privado, nunca para a CDN pública.
+### Rules
+- **The manifest is the only mutable file.** With a 60 s cache, a rollback or kill switch reaches clients quickly.
+- **Bundles live in per-version folders and are never overwritten.** A new version goes to a new folder.
+- **The manifest always goes up last**, after the bundles. That way no client gets a URL that does not exist yet.
+- **Sourcemaps** go to a private place, never to the public CDN.
 
-### Publicação dos manifestos
+### Publishing the manifests
 ```bash
-release/publish-manifest.sh staging                  # manifesto oficial de staging
-release/publish-manifest.sh production               # manifesto oficial de produção
-release/publish-manifest.sh staging --local-remote   # teste: staging apontando para o remote em localhost
-DRY_RUN=1 release/publish-manifest.sh staging        # só valida
+release/publish-manifest.sh staging                  # official staging manifest
+release/publish-manifest.sh production               # official production manifest
+release/publish-manifest.sh staging --local-remote   # test: staging pointing to the remote on localhost
+DRY_RUN=1 release/publish-manifest.sh staging        # validate only
 ```
-Antes de subir, o script:
-- valida o schema e o canal;
-- exige HTTPS nas entries (exceto em `--local-remote`);
-- confere se o perfil da CLI está logado na conta certa (`CDN_ACCOUNT_ID`).
+Before uploading, the script:
+- validates the schema and the channel;
+- requires HTTPS on the entries (except with `--local-remote`);
+- checks that the CLI profile is logged in to the right account (`CDN_ACCOUNT_ID`).
 
-O destino fica em `release/cdn.env`, que **não é commitado**, porque o repositório é público.
+The target lives in `release/cdn.env`, which is **not committed**, because the repository is public.
 
-### Operação
-| Ação | Como | Efeito |
+### Operations
+| Action | How | Effect |
 |---|---|---|
-| **Kill switch** | Publicar o manifesto com `enabled: false` | Todos vão para o Todo local na próxima abertura do app |
-| **Rollback** | Publicar o manifesto com o `releaseId`/`entries` da versão anterior | Volta sem passar pela loja. Quem já tem o módulo em memória só troca ao reiniciar. |
-| **Rollout %** | `rolloutPercent` + `previous` no manifesto | Fase 6 (ainda não existe) |
-| **Mudança de contrato (major) ou módulo nativo novo** | Publicar um host novo na loja e só então subir `minHostVersion` | O manifesto sozinho não resolve |
+| **Kill switch** | Publish the manifest with `enabled: false` | Everyone goes to the local Todo on the next app open |
+| **Rollback** | Publish the manifest with the `releaseId`/`entries` of the previous version | Reverts without going through the app store. Those who already have the module in memory only swap on restart. |
+| **Rollout %** | `rolloutPercent` + `previous` in the manifest | Phase 6 (does not exist yet) |
+| **Contract change (major) or a new native module** | Publish a new host to the app store and only then bump `minHostVersion` | The manifest alone does not solve it |
 
-### Cenário: mudar a faixa de host (`minHostVersion` / `maxHostVersionExclusive`)
+### Scenario: changing the host range (`minHostVersion` / `maxHostVersionExclusive`)
 
-A faixa diz **quais binários da loja** podem carregar o release do remote. O host compara a própria versão (`expo.version` do `app.json`, embarcada no binário) com o intervalo `[minHostVersion, maxHostVersionExclusive)`:
+The range states **which app store binaries** can load the remote's release. The host compares its own version (`expo.version` from `app.json`, embedded in the binary) with the interval `[minHostVersion, maxHostVersionExclusive)`:
 
 ```ts
 // apps/host/release/compatibility.ts
@@ -394,72 +394,72 @@ if (compareVersions(host.version, c.maxHostVersionExclusive) >= 0)
   problems.push(`host ${host.version} >= ${c.maxHostVersionExclusive}`);
 ```
 
-Fora da faixa, o host lança `RemoteLoadError('compatibility')` **antes de baixar o bundle**. A tela abre direto no Todo local, sem "Tentar novamente", e a telemetria registra o motivo.
+Out of range, the host throws `RemoteLoadError('compatibility')` **before downloading the bundle**. The screen opens straight into the local Todo, with no "Try again", and telemetry records the reason.
 
-**A história:** a loja tem o host `1.0.0`. Sai o host `1.1.0`, e o próximo release do remote só funciona nele.
+**The story:** the app store has host `1.0.0`. Host `1.1.0` ships, and the next remote release only works on it.
 
-| Passo | Manifesto | Host `1.0.0` | Host `1.1.0` |
+| Step | Manifest | Host `1.0.0` | Host `1.1.0` |
 |---|---|---|---|
-| 1. Hoje | `min 1.0.0` · `max 2.0.0` | ✅ carrega o remote | ✅ carrega o remote |
-| 2. Remote novo exige o host novo | `min 1.1.0` · `max 2.0.0` | ⛔ `host 1.0.0 < 1.1.0` → Todo local | ✅ carrega o remote novo |
-| 3. Rollback | volta para `min 1.0.0` | ✅ volta a carregar | ✅ carrega |
-| 4. Sai o host `2.0.0` (contrato 2) | release antigo continua com `max 2.0.0` | ✅ | ✅ (o host `2.0.0` recusa esse release: `host 2.0.0 >= 2.0.0`) |
+| 1. Today | `min 1.0.0` · `max 2.0.0` | ✅ loads the remote | ✅ loads the remote |
+| 2. New remote requires the new host | `min 1.1.0` · `max 2.0.0` | ⛔ `host 1.0.0 < 1.1.0` → local Todo | ✅ loads the new remote |
+| 3. Rollback | back to `min 1.0.0` | ✅ loads again | ✅ loads |
+| 4. Host `2.0.0` ships (contract 2) | the old release stays at `max 2.0.0` | ✅ | ✅ (host `2.0.0` rejects that release: `host 2.0.0 >= 2.0.0`) |
 
-> Hoje o manifesto tem **um release por canal**. No passo 2, quem está no host `1.0.0` não recebe o release anterior: vai para o Todo local. Servir um release diferente para cada faixa é a Fase 6 (`previous` no manifesto).
+> Today the manifest has **one release per channel**. In step 2, those on host `1.0.0` do not get the previous release: they go to the local Todo. Serving a different release for each range is Phase 6 (`previous` in the manifest).
 
-#### Como a mudança chega ao app sem build do host
+#### How the change reaches the app without a host build
 
 ```mermaid
 sequenceDiagram
-  participant Dev as Você
+  participant Dev as You
   participant Repo as release/manifest.*.json
   participant S3 as S3 + CloudFront
-  participant App as Host (aparelho)
+  participant App as Host (device)
 
-  Dev->>Repo: edita minHostVersion / maxHostVersionExclusive
-  Dev->>Repo: DRY_RUN=1 publish-manifest.sh staging (valida)
+  Dev->>Repo: edits minHostVersion / maxHostVersionExclusive
+  Dev->>Repo: DRY_RUN=1 publish-manifest.sh staging (validates)
   Dev->>S3: publish-manifest.sh staging<br/>aws s3 cp, Cache-Control: max-age=60
-  Note over S3: CloudFront pode servir o<br/>manifesto antigo por até 60 s
-  App->>S3: próxima abertura do app:<br/>GET /manifests/staging.json (timeout 3 s)
-  S3-->>App: manifesto novo
-  App->>App: assertCompatible: host.version na faixa?
-  alt dentro da faixa
-    App->>S3: baixa o bundle do remote
-  else fora da faixa
-    App->>App: Todo local + telemetria phase "compatibility"
+  Note over S3: CloudFront may serve the<br/>old manifest for up to 60 s
+  App->>S3: next app open:<br/>GET /manifests/staging.json (3 s timeout)
+  S3-->>App: new manifest
+  App->>App: assertCompatible: is host.version in range?
+  alt in range
+    App->>S3: downloads the remote bundle
+  else out of range
+    App->>App: local Todo + telemetry phase "compatibility"
   end
 ```
 
-**Em staging / produção (servidor = S3 + CloudFront):**
+**In staging / production (server = S3 + CloudFront):**
 
 ```bash
-# 1. editar a faixa
+# 1. edit the range
 #    release/manifest.staging.json → remotes.todo.compatibility
 #      "minHostVersion": "1.1.0",
 #      "maxHostVersionExclusive": "2.0.0"
 
-# 2. validar sem tocar na AWS (schema, canal, HTTPS nas entries)
+# 2. validate without touching AWS (schema, channel, HTTPS on the entries)
 DRY_RUN=1 release/publish-manifest.sh staging
 
-# 3. publicar (sobrescreve <bucket>/todo-mf/manifests/staging.json)
+# 3. publish (overwrites <bucket>/todo-mf/manifests/staging.json)
 release/publish-manifest.sh staging
 
-# 4. conferir o que a CDN está servindo
+# 4. check what the CDN is serving
 curl -s https://d2agf17ues9yij.cloudfront.net/todo-mf/manifests/staging.json | jq '.remotes.todo.compatibility'
 ```
 
-- Só o **manifesto** muda. Nenhum bundle é reenviado, e o host não passa pela loja.
-- O CloudFront respeita o `max-age=60`: em até 1 minuto todos os pontos de presença servem o manifesto novo, sem *invalidation*.
-- O app lê o manifesto **uma vez por execução** (`loadReleaseManifest` guarda a Promise). Quem está com o app aberto só vê a mudança ao reabrir.
-- O rollback é o mesmo comando, com os valores antigos.
+- Only the **manifest** changes. No bundle is re-uploaded, and the host does not go through the app store.
+- CloudFront honors the `max-age=60`: within a minute all points of presence serve the new manifest, with no *invalidation*.
+- The app reads the manifest **once per run** (`loadReleaseManifest` keeps the Promise). Those with the app open only see the change on reopen.
+- The rollback is the same command, with the old values.
 
-**Em dev (servidor = dashboard de cenários, porta 4000):**
+**In dev (server = scenario dashboard, port 4000):**
 
-- **Sem editar arquivo:** o cenário **"Host fora da faixa (min 1.1.0)"** altera `minHostVersion` no manifesto que o dashboard entrega. Com "recarregar o app ao trocar" marcado, o app recarrega sozinho.
-- **Editando o arquivo:** o dashboard relê `release/manifest.dev.json` a cada `GET /manifest.json`. Mude a faixa, salve e clique em **Recarregar app**.
-- **Simulando o host `1.1.0`:** como o host lê a versão do `app.json` no bundle JS, em dev basta mudar `expo.version` para `1.1.0` e recarregar. Em produção, essa versão só muda com um build novo na loja.
+- **Without editing a file:** the **"Host out of range (min 1.1.0)"** scenario changes `minHostVersion` in the manifest the dashboard serves. With "reload the app on switch" checked, the app reloads on its own.
+- **Editing the file:** the dashboard re-reads `release/manifest.dev.json` on every `GET /manifest.json`. Change the range, save and click **Reload app**.
+- **Simulating host `1.1.0`:** since the host reads the version from `app.json` in the JS bundle, in dev it is enough to change `expo.version` to `1.1.0` and reload. In production, that version only changes with a new build in the app store.
 
-O resultado aparece em **Eventos ao vivo**: logo depois do `manifest` vem `telemetry [remote_fallback] todo/TodoWidget · phase "compatibility" · Remote todo-dev-local incompatible: host 1.0.0 < 1.1.0`, e nenhum `request` de bundle. O selo some da Home. Ao abrir a tela Todo, chega o mesmo evento para `todo`.
+The result shows up in **Live events**: right after the `manifest` comes `telemetry [remote_fallback] todo/TodoWidget · phase "compatibility" · Remote todo-dev-local incompatible: host 1.0.0 < 1.1.0`, and no bundle `request`. The badge disappears from Home. On opening the Todo screen, the same event arrives for `todo`.
 
 ---
 

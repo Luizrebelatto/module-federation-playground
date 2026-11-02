@@ -27,21 +27,21 @@ const release = (releaseId: string): ResolvedRemote => ({
 
 beforeEach(() => mockedLoadRemote.mockReset());
 
-test('duas chamadas simultâneas fazem uma única carga', async () => {
+test('two concurrent calls trigger a single load', async () => {
   mockedLoadRemote.mockResolvedValue({ default: () => null });
   const [a, b] = await Promise.all([loadTodoScreen(release('r1')), loadTodoScreen(release('r1'))]);
   expect(mockedLoadRemote).toHaveBeenCalledTimes(1);
   expect(a).toBe(b);
 });
 
-test('falha não fica em cache: a próxima chamada tenta de novo', async () => {
+test('a failure is not cached: the next call tries again', async () => {
   mockedLoadRemote.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce({ default: () => null });
   await expect(loadTodoScreen(release('r2'))).rejects.toMatchObject({ phase: 'load' });
   await expect(loadTodoScreen(release('r2'))).resolves.toBeDefined();
   expect(mockedLoadRemote).toHaveBeenCalledTimes(2);
 });
 
-test('módulo sem default vira erro de load', async () => {
+test('a module without a default becomes a load error', async () => {
   mockedLoadRemote.mockResolvedValue({});
   await expect(loadTodoScreen(release('r3'))).rejects.toMatchObject({ phase: 'load' });
 });

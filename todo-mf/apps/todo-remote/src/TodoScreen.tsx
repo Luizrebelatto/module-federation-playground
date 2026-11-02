@@ -19,25 +19,25 @@ export default function TodoScreen({ store, releaseId }: TodoRemoteProps) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerText}>Remote · {releaseId}</Text>
-        <Text style={styles.headerText}>{pending} pendente(s)</Text>
+        <Text style={styles.headerText}>{pending} pending</Text>
       </View>
       <View style={styles.form}>
         <TextInput
           style={styles.input}
-          placeholder="Nova tarefa (remote)"
+          placeholder="New task (remote)"
           value={title}
           onChangeText={setTitle}
           onSubmitEditing={submit}
           returnKeyType="done"
         />
         <Pressable style={styles.addButton} onPress={submit} accessibilityRole="button">
-          <Text style={styles.addButtonText}>Adicionar</Text>
+          <Text style={styles.addButtonText}>Add</Text>
         </Pressable>
       </View>
       <FlatList
         data={todos}
         keyExtractor={(todo) => todo.id}
-        ListEmptyComponent={<Text style={styles.empty}>Nenhuma tarefa ainda.</Text>}
+        ListEmptyComponent={<Text style={styles.empty}>No tasks yet.</Text>}
         renderItem={({ item }) => (
           <View style={styles.row}>
             <Pressable
@@ -51,7 +51,7 @@ export default function TodoScreen({ store, releaseId }: TodoRemoteProps) {
               </Text>
             </Pressable>
             <Pressable onPress={() => void store.remove(item.id)} accessibilityRole="button" hitSlop={8}>
-              <Text style={styles.remove}>Remover</Text>
+              <Text style={styles.remove}>Remove</Text>
             </Pressable>
           </View>
         )}

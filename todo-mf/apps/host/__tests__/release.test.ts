@@ -15,28 +15,28 @@ const remote = (overrides: Partial<ResolvedRemote['compatibility']>): ResolvedRe
 
 const host = { ...hostInfo, react: '19.2.3', reactNative: '0.86.3' };
 
-test('o manifesto dev é válido', () => {
+test('the dev manifest is valid', () => {
   expect(() => parseManifest(devManifest)).not.toThrow();
 });
 
-test('manifesto com schema errado é recusado', () => {
+test('a manifest with the wrong schema is rejected', () => {
   expect(() => parseManifest({ ...devManifest, schema: 2 })).toThrow(/invalid schema/);
 });
 
 test.each([
   ['staging', stagingManifest],
   ['production', prodManifest],
-])('manifesto de %s é recusado no canal dev', (_channel, manifest) => {
+])('a %s manifest is rejected on the dev channel', (_channel, manifest) => {
   expect(() => parseManifest(manifest)).toThrow(expect.objectContaining({ phase: 'manifest' }));
   expect(() => parseManifest(manifest)).toThrow(/channel/);
 });
 
-test('manifestos de staging e produção nascem desligados', () => {
+test('staging and production manifests start disabled', () => {
   expect(stagingManifest.remotes.todo.enabled).toBe(false);
   expect(prodManifest.remotes.todo.enabled).toBe(false);
 });
 
-test('remote do manifesto dev é compatível com o host', () => {
+test('the dev manifest remote is compatible with the host', () => {
   expect(() => assertCompatible(remote({}), host)).not.toThrow();
 });
 
@@ -46,7 +46,7 @@ test.each([
   [{ runtimeApi: 2 }],
   [{ minHostVersion: '9.0.0' }],
   [{ maxHostVersionExclusive: '1.0.0' }],
-])('incompatível: %o', (overrides) => {
+])('incompatible: %o', (overrides) => {
   expect(() => assertCompatible(remote(overrides), host)).toThrow(
     expect.objectContaining({ phase: 'compatibility' }),
   );

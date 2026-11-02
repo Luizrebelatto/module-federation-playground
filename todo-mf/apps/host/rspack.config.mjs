@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 
 const RELEASE_CHANNEL = process.env.RELEASE_CHANNEL ?? 'dev';
 if (!['dev', 'staging', 'production'].includes(RELEASE_CHANNEL)) {
-  throw new Error(`RELEASE_CHANNEL inválido: "${RELEASE_CHANNEL}" (use dev, staging ou production)`);
+  throw new Error(`Invalid RELEASE_CHANNEL: "${RELEASE_CHANNEL}" (use dev, staging or production)`);
 }
 
 export default Repack.defineRspackConfig({

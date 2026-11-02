@@ -22,7 +22,7 @@ function isCompatible(name, compatibility) {
 
   if (mismatches.length > 0) {
     const detail = mismatches.map(([k, r, h]) => `${k} ${r} != ${h}`).join(', ');
-    console.warn(`[manifest] remote "${name}" ignorado — incompatível: ${detail}`);
+    console.warn(`[manifest] remote "${name}" ignored — incompatible: ${detail}`);
     return false;
   }
   return true;
@@ -32,7 +32,7 @@ const containers = Object.fromEntries(
   Object.entries(manifest.remotes)
     .filter(([name, remote]) => {
       if (!remote.enabled) {
-        console.warn(`[manifest] remote "${name}" está desativado (enabled: false)`);
+        console.warn(`[manifest] remote "${name}" is disabled (enabled: false)`);
         return false;
       }
       return isCompatible(name, remote.compatibility);

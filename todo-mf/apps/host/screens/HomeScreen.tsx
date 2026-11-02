@@ -24,8 +24,8 @@ export function HomeScreen({ navigation }: NativeStackScreenProps<RootStackParam
   return (
     <View style={styles.container}>
       <FederatedTodoWidget />
-      <Button title="Todo (remote, com fallback)" onPress={() => navigation.navigate('Todo')} />
-      <Button title="Todo local" onPress={() => navigation.navigate('LocalTodo')} />
+      <Button title="Todo (remote, with fallback)" onPress={() => navigation.navigate('Todo')} />
+      <Button title="Local Todo" onPress={() => navigation.navigate('LocalTodo')} />
     </View>
   );
 }

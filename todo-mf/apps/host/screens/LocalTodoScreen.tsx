@@ -26,20 +26,20 @@ export function LocalTodoScreen({ store, banner }: Props) {
       <View style={styles.form}>
         <TextInput
           style={styles.input}
-          placeholder="Nova tarefa"
+          placeholder="New task"
           value={title}
           onChangeText={setTitle}
           onSubmitEditing={submit}
           returnKeyType="done"
         />
         <Pressable style={styles.addButton} onPress={submit} accessibilityRole="button">
-          <Text style={styles.addButtonText}>Adicionar</Text>
+          <Text style={styles.addButtonText}>Add</Text>
         </Pressable>
       </View>
       <FlatList
         data={todos}
         keyExtractor={(todo) => todo.id}
-        ListEmptyComponent={<Text style={styles.empty}>Nenhuma tarefa ainda.</Text>}
+        ListEmptyComponent={<Text style={styles.empty}>No tasks yet.</Text>}
         renderItem={({ item }) => (
           <View style={styles.row}>
             <Pressable
@@ -53,7 +53,7 @@ export function LocalTodoScreen({ store, banner }: Props) {
               </Text>
             </Pressable>
             <Pressable onPress={() => void store.remove(item.id)} accessibilityRole="button" hitSlop={8}>
-              <Text style={styles.remove}>Remover</Text>
+              <Text style={styles.remove}>Remove</Text>
             </Pressable>
           </View>
         )}

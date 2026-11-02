@@ -1,12 +1,12 @@
 import { createTodoStore } from '../store/todoStore';
 
-test('adds simultâneos não se perdem e mantêm a ordem', async () => {
+test('concurrent adds are not lost and keep their order', async () => {
   const store = createTodoStore();
   await Promise.all([store.add('a'), store.add('b'), store.add('c')]);
   expect(store.getSnapshot().map((todo) => todo.title)).toEqual(['a', 'b', 'c']);
 });
 
-test('dois toggles seguidos voltam ao estado original', async () => {
+test('two consecutive toggles return to the original state', async () => {
   const store = createTodoStore();
   await store.add('a');
   const [{ id }] = store.getSnapshot();
@@ -14,9 +14,9 @@ test('dois toggles seguidos voltam ao estado original', async () => {
   expect(store.getSnapshot()[0].completed).toBe(false);
 });
 
-test('getSnapshot mantém a referência quando nada muda', async () => {
+test('getSnapshot keeps the same reference when nothing changes', async () => {
   const store = createTodoStore();
   const before = store.getSnapshot();
-  await store.remove('nao-existe');
+  await store.remove('does-not-exist');
   expect(store.getSnapshot()).toBe(before);
 });

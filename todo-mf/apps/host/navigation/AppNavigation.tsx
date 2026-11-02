@@ -19,7 +19,7 @@ export function AppNavigation() {
       <Stack.Navigator>
         <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Host' }} />
         <Stack.Screen name="Todo" component={TodoScreen} options={{ title: 'Todo' }} />
-        <Stack.Screen name="LocalTodo" component={LocalTodoRoute} options={{ title: 'Todo local' }} />
+        <Stack.Screen name="LocalTodo" component={LocalTodoRoute} options={{ title: 'Local Todo' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

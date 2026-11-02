@@ -8,7 +8,7 @@ export default function TodoWidget({ store, releaseId }: TodoRemoteProps) {
 
   return (
     <View style={styles.badge}>
-      <Text style={styles.count}>{pending} tarefa(s) pendente(s)</Text>
+      <Text style={styles.count}>{pending} pending task(s)</Text>
       <Text style={styles.release}>Remote · {releaseId}</Text>
     </View>
   );
