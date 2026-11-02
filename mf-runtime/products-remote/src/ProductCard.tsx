@@ -6,19 +6,13 @@ import {
   StyleSheet,
 } from 'react-native';
 
-console.log('[REMOTE] ProductCard module evaluated');
-
 export default function ProductCard() {
   console.log('[REMOTE] ProductCard rendered');
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>
-        MacBook Pro
-      </Text>
-
+      <Text style={styles.title}>MacBook Pro</Text>
       <Text>Price: $1,999</Text>
-
       <Text>
         Loaded from Products Remote
       </Text>
