@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "channel": "dev",
+  "remotes": {
+    "products": {
+      "enabled": true,
+      "container": "products",
+      "releaseId": "products-dev-local",
+      "entries": {
+        "ios": "http://localhost:9000/products.container.bundle",
+        "android": "http://10.0.2.2:9000/products.container.bundle"
+      },
+      "compatibility": {
+        "runtimeApi": 1,
+        "contract": "1.0.0",
+        "react": "19.2.3",
+        "reactNative": "0.86.3",
+        "minHostVersion": "1.0.0",
+        "maxHostVersionExclusive": "2.0.0"
+      }
+    }
+  }
+}

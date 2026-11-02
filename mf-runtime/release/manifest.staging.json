@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "channel": "staging",
+  "remotes": {
+    "products": {
+      "enabled": true,
+      "container": "products",
+      "releaseId": "products-1.1.0-rc.1",
+      "entries": {
+        "ios": "https://d111111abcdef8.cloudfront.net/mf-runtime/products/ios/1.1.0-rc.1/products.container.bundle",
+        "android": "https://d111111abcdef8.cloudfront.net/mf-runtime/products/android/1.1.0-rc.1/products.container.bundle"
+      },
+      "compatibility": {
+        "runtimeApi": 1,
+        "contract": "1.0.0",
+        "react": "19.2.3",
+        "reactNative": "0.86.3",
+        "minHostVersion": "1.0.0",
+        "maxHostVersionExclusive": "2.0.0"
+      }
+    }
+  }
+}
