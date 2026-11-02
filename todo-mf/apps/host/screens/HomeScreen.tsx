@@ -12,7 +12,6 @@ export function HomeScreen({ navigation }: NativeStackScreenProps<RootStackParam
     void preloadTodoScreen();
   }, []);
 
-  // Em dev, o cenário do dashboard pode pedir para abrir a tela Todo direto.
   useEffect(() => {
     if (!__DEV__) return;
     loadReleaseManifest()

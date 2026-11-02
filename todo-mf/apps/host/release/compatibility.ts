@@ -1,4 +1,3 @@
-// apps/host/release/compatibility.ts
 import { version as reactVersion } from 'react';
 import { Platform } from 'react-native';
 import { CONTRACT_VERSION } from '@todo-mf/todo-contract';
@@ -7,7 +6,6 @@ import appConfig from '../app.json';
 import { RemoteLoadError } from '../federation/RemoteLoadError';
 import type { ResolvedRemote } from './manifest';
 
-/** Versão da API de runtime que este binário host oferece aos remotes. */
 export const HOST_RUNTIME_API = 1;
 
 const { major, minor, patch } = Platform.constants.reactNativeVersion;

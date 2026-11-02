@@ -1,22 +1,11 @@
 #!/usr/bin/env bash
-# Publica o manifesto de um canal no S3, servido pelo CloudFront em $CDN_URL/manifests/<canal>.json.
-#
-# Uso:
-#   release/publish-manifest.sh staging                  publica release/manifest.staging.json
-#   release/publish-manifest.sh production               publica release/manifest.prod.json
-#   release/publish-manifest.sh staging --local-remote   publica o manifesto dev com channel=staging, apontando
-#                                                        para o remote em localhost (só para testar o app)
-#
-# DRY_RUN=1 valida e mostra o manifesto sem falar com a AWS.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-# cdn.env não é commitado (repo público): bucket e conta ficam só na máquina de quem publica.
 if [[ ! -f "$DIR/cdn.env" ]]; then
   echo "crie release/cdn.env a partir de release/cdn.env.example" >&2
   exit 1
 fi
-# shellcheck source=cdn.env.example
 source "$DIR/cdn.env"
 
 usage() {
@@ -45,7 +34,6 @@ esac
 TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
 
-# Mesmas regras do parseManifest do host, mais: canal certo e nada de http/localhost fora do --local-remote.
 node - "$SOURCE" "$CHANNEL" "$MODE" "$TMP" <<'JS'
 const fs = require('node:fs');
 const [source, channel, mode, out] = process.argv.slice(2);
@@ -102,7 +90,6 @@ if [[ "$ACCOUNT" != "$CDN_ACCOUNT_ID" ]]; then
   exit 1
 fi
 
-# Manifesto é o único arquivo mutável: cache curto para rollback e kill switch chegarem rápido.
 aws s3 cp "$TMP" "s3://$CDN_BUCKET/$KEY" \
   --cache-control "public, max-age=60" \
   --content-type application/json

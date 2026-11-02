@@ -32,7 +32,6 @@ export default Repack.defineRspackConfig({
     new Repack.RepackPlugin(),
     new Repack.plugins.ModuleFederationPluginV2({
       name: 'todo_remote',
-      // Tem que bater com o entry do release/manifest.dev.json.
       filename: 'todo_remote.container.js.bundle',
       dts: false,
       exposes: {
@@ -40,7 +39,6 @@ export default Repack.defineRspackConfig({
         './TodoWidget': './src/TodoWidget',
       },
       shared: {
-        // eager: false → usa as cópias que o host já colocou no share scope.
         react: { singleton: true, eager: false, requiredVersion: '19.2.3' },
         'react-native': { singleton: true, eager: false, requiredVersion: '0.86.3' },
       },

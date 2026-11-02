@@ -27,17 +27,13 @@ export type ReleaseManifest = {
   schema: 1;
   channel: string;
   remotes: Record<string, RemoteRelease>;
-  /** Só o dashboard de cenários manda (dev): tela que o app abre ao iniciar. */
   dev?: { openScreen?: string };
 };
 
 export type ResolvedRemote = Omit<RemoteRelease, 'entries'> & { name: string; entry: string };
 
-// CloudFront na frente do bucket S3 (privado, acesso via OAC). Layout do bucket: Fase 9 do apps/README.md.
 const CDN_BASE_URL = 'https://d2agf17ues9yij.cloudfront.net/todo-mf';
 
-// Cada canal tem a URL do manifesto remoto e o manifesto embarcado usado quando o remoto falha.
-// Em dev, o dashboard de cenários entrega o manifesto; sem ele, vale o embarcado.
 const CHANNELS = {
   dev: {
     url: DEV_DASHBOARD_URL && `${DEV_DASHBOARD_URL}/manifest.json?platform=${Platform.OS}`,
@@ -81,7 +77,6 @@ export function parseManifest(value: unknown): ReleaseManifest {
   ) {
     throw new RemoteLoadError('manifest', 'Release manifest has an invalid schema');
   }
-  // Manifesto de outro canal (ex.: staging publicado no caminho de produção) é erro de deploy.
   if (manifest.channel !== __RELEASE_CHANNEL__) {
     throw new RemoteLoadError('manifest', `Manifest channel ${manifest.channel} != ${__RELEASE_CHANNEL__}`);
   }

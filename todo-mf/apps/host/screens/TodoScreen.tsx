@@ -17,8 +17,6 @@ export function TodoScreen() {
   const [attempt, setAttempt] = useState(0);
   const releaseIdRef = useRef<string | undefined>(undefined);
 
-  // React.lazy guarda o resultado (inclusive a rejeição) para sempre;
-  // por isso criamos um lazy novo a cada tentativa.
   const RemoteTodo = useMemo(
     () =>
       lazy(async () => {
@@ -33,7 +31,7 @@ export function TodoScreen() {
 
   return (
     <RemoteErrorBoundary
-      key={attempt} // trocar a key remonta o boundary = limpa o erro
+      key={attempt}
       onError={(error) =>
         reportRemoteFallback({ remote: 'todo', releaseId: releaseIdRef.current, phase: phaseOf(error), error })
       }

@@ -27,8 +27,6 @@ const release = (releaseId: string): ResolvedRemote => ({
 
 beforeEach(() => mockedLoadRemote.mockReset());
 
-// Cada teste usa um releaseId diferente: os caches do loader (inFlight, registered) são do módulo.
-
 test('duas chamadas simultâneas fazem uma única carga', async () => {
   mockedLoadRemote.mockResolvedValue({ default: () => null });
   const [a, b] = await Promise.all([loadTodoScreen(release('r1')), loadTodoScreen(release('r1'))]);

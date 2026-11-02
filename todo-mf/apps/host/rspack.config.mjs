@@ -7,7 +7,6 @@ import { DefinePlugin } from '@rspack/core';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Canal de release embutido no bundle. Um valor inválido quebra o build em vez de gerar um app sem manifesto.
 const RELEASE_CHANNEL = process.env.RELEASE_CHANNEL ?? 'dev';
 if (!['dev', 'staging', 'production'].includes(RELEASE_CHANNEL)) {
   throw new Error(`RELEASE_CHANNEL inválido: "${RELEASE_CHANNEL}" (use dev, staging ou production)`);

@@ -13,7 +13,6 @@ const remote = (overrides: Partial<ResolvedRemote['compatibility']>): ResolvedRe
   compatibility: { ...devManifest.remotes.todo.compatibility, ...overrides },
 });
 
-// Host fixo: não depende do RN/React que o ambiente de teste resolve.
 const host = { ...hostInfo, react: '19.2.3', reactNative: '0.86.3' };
 
 test('o manifesto dev é válido', () => {
@@ -24,7 +23,6 @@ test('manifesto com schema errado é recusado', () => {
   expect(() => parseManifest({ ...devManifest, schema: 2 })).toThrow(/invalid schema/);
 });
 
-// O Jest roda com __RELEASE_CHANNEL__ = 'dev' (package.json > jest.globals).
 test.each([
   ['staging', stagingManifest],
   ['production', prodManifest],

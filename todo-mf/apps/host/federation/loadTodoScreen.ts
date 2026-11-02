@@ -8,25 +8,20 @@ import { RemoteLoadError } from './RemoteLoadError';
 
 const LOAD_TIMEOUT_MS = 10_000;
 
-// ScriptManager e CorePlugin do Re.Pack fazem console.error quando o entry não baixa;
-// a falha real chega em importTodoModule e vira RemoteLoadError + fallback + telemetria.
 if (__DEV__) LogBox.ignoreLogs(['[ScriptManager] Failed to load script:', 'Failed to load remote entry:']);
 
 type TodoComponent = ComponentType<TodoRemoteProps>;
 
-/** Módulos que o container `todo` expõe (`exposes` do remote). */
 export type TodoExposed = 'TodoScreen' | 'TodoWidget';
 
-// Pedidos simultâneos para o mesmo release + módulo compartilham a mesma Promise.
 const inFlight = new Map<string, Promise<TodoComponent>>();
-// container -> entry registrado no runtime MF.
 const registered = new Map<string, string>();
 
 function loadOnce(key: string, load: () => Promise<TodoComponent>) {
   const existing = inFlight.get(key);
   if (existing) return existing;
   const promise = load().catch((error) => {
-    inFlight.delete(key); // permite retry posterior
+    inFlight.delete(key);
     throw error;
   });
   inFlight.set(key, promise);
@@ -47,7 +42,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, releaseId: string) {
 function register(release: ResolvedRemote) {
   const current = registered.get(release.container);
   if (current === release.entry) return;
-  // `force` troca o entry de um container já registrado (ex.: rollback no manifesto).
   registerRemotes([{ name: release.container, entry: release.entry }], { force: current !== undefined });
   registered.set(release.container, release.entry);
 }

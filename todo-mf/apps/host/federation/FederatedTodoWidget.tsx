@@ -8,7 +8,6 @@ import { RemoteErrorBoundary } from './RemoteErrorBoundary';
 import { phaseOf } from './RemoteLoadError';
 import { reportRemoteFallback } from './telemetry';
 
-/** Widget remoto opcional: se qualquer fase falhar, ele simplesmente não aparece. */
 export function FederatedTodoWidget() {
   const store = useTodoStore();
   const releaseIdRef = useRef<string | undefined>(undefined);
