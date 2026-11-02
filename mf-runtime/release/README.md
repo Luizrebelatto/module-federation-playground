@@ -1,123 +1,124 @@
-# `release/` — entrega do remote em produção (S3 + CloudFront)
+# `release/` — shipping the remote in production (S3 + CloudFront)
 
-Esta pasta é a camada de **produção** do `mf-runtime`. Ela responde à pergunta: *"se o
-manifesto fica embutido no host, como eu atualizo sem rebuildar o app?"* — tirando o manifesto
-de dentro do bundle e colocando numa **CDN**, de onde o host o busca em runtime.
+This folder is the **production** layer of `mf-runtime`. It answers the question: *"if the
+manifest is embedded in the host, how do I update it without rebuilding the app?"* — by taking
+the manifest out of the bundle and putting it on a **CDN**, where the host fetches it at runtime.
 
-## O princípio
+## The principle
 
-- O **host** é o app instalado pela loja — uma casca que quase não muda.
-- O **remote** (`products`) é **JavaScript baixado em runtime**.
-- Um **manifesto por canal** (`dev` / `staging` / `production`), servido pela **CDN (S3 +
-  CloudFront)**, decide **qual versão** do remote cada app carrega, **se** carrega (`enabled`) e
-  **para quem** (faixa de versão do host em `compatibility`).
+- The **host** is the app installed from the store — a shell that barely changes.
+- The **remote** (`products`) is **JavaScript downloaded at runtime**.
+- A **per-channel manifest** (`dev` / `staging` / `production`), served by the **CDN (S3 +
+  CloudFront)**, decides **which version** of the remote each app loads, **whether** it loads
+  (`enabled`), and **for whom** (host version range in `compatibility`).
 
-Tudo que não é código do host passa a ser atualizável **sem passar pela loja**.
+Everything that isn't host code becomes updatable **without going through the store**.
 
-## Arquivos
+## Files
 
-| Arquivo | O quê |
-|---------|-------|
-| `manifest.dev.json` | Canal dev — remote em `localhost:9000` (o mesmo que o host embute hoje). |
-| `manifest.staging.json` | Canal staging — testa a **próxima** versão do remote na CDN. |
-| `manifest.prod.json` | Canal produção — a versão estável na CDN. |
-| `publish-remote.sh` | Builda o container do remote e sobe os bundles (imutável por versão). |
-| `publish-manifest.sh` | Valida e publica o manifesto de um canal (único arquivo mutável). |
-| `cdn.env.example` | Modelo da config da CDN. Copie para `cdn.env` (não commitado). |
+| File | What it is |
+|------|------------|
+| `manifest.dev.json` | Dev channel — remote at `localhost:9000` (the same one the host embeds today). |
+| `manifest.staging.json` | Staging channel — tests the **next** version of the remote on the CDN. |
+| `manifest.prod.json` | Production channel — the stable version on the CDN. |
+| `publish-remote.sh` | Builds the remote container and uploads the bundles (immutable per version). |
+| `publish-manifest.sh` | Validates and publishes a channel's manifest (the only mutable file). |
+| `cdn.env.example` | Template for the CDN config. Copy to `cdn.env` (not committed). |
 
-## Layout do bucket
+## Bucket layout
 
 ```text
 <bucket>/mf-runtime/
 ├── manifests/
-│   ├── staging.json            # MUTÁVEL · Cache-Control: public, max-age=60
-│   └── production.json         # MUTÁVEL · Cache-Control: public, max-age=60
-└── products/                   # bundles do remote
-    ├── ios/<versão>/products.container.bundle + chunks + assets
-    └── android/<versão>/...    # IMUTÁVEL · Cache-Control: max-age=31536000, immutable
+│   ├── staging.json            # MUTABLE · Cache-Control: public, max-age=60
+│   └── production.json         # MUTABLE · Cache-Control: public, max-age=60
+└── products/                   # remote bundles
+    ├── ios/<version>/products.container.bundle + chunks + assets
+    └── android/<version>/...   # IMMUTABLE · Cache-Control: max-age=31536000, immutable
 ```
 
-**Regras de ouro:**
-1. **Só o manifesto é mutável.** Cache de 60 s → rollback/kill-switch chega rápido.
-2. **Bundles ficam em pasta por versão e nunca são sobrescritos.** Versão nova = pasta nova.
-3. **O manifesto sobe por último**, depois dos bundles — nenhum app recebe uma URL que ainda
-   não existe.
-4. **Sourcemaps** nunca vão para a CDN pública.
+**Golden rules:**
+1. **Only the manifest is mutable.** A 60 s cache → rollback/kill-switch reaches clients fast.
+2. **Bundles live in a per-version folder and are never overwritten.** New version = new folder.
+3. **The manifest is uploaded last**, after the bundles — no app ever receives a URL that
+   doesn't exist yet.
+4. **Sourcemaps** never go to the public CDN.
 
-## O flow exato
+## The exact flow
 
-### Etapa A — publicar uma versão nova do remote
+### Step A — publish a new version of the remote
 
 ```bash
-# builda o container (ios + android) e sobe para products/<plataforma>/1.2.0/
+# builds the container (ios + android) and uploads to products/<platform>/1.2.0/
 release/publish-remote.sh 1.2.0
 ```
-Isso gera `products.container.bundle` + chunks e faz `aws s3 sync` para a pasta **imutável**
-`mf-runtime/products/<plataforma>/1.2.0/`. Nada aponta para ela ainda.
+This produces `products.container.bundle` + chunks and runs `aws s3 sync` to the **immutable**
+folder `mf-runtime/products/<platform>/1.2.0/`. Nothing points to it yet.
 
-### Etapa B — apontar o manifesto e publicar
+### Step B — point the manifest and publish
 
 ```bash
-# 1. editar release/manifest.prod.json:
+# 1. edit release/manifest.prod.json:
 #      remotes.products.releaseId  → "products-1.2.0"
-#      remotes.products.entries    → .../products/<plataforma>/1.2.0/products.container.bundle
-# 2. validar sem tocar na AWS (schema, canal, HTTPS nas entries)
+#      remotes.products.entries    → .../products/<platform>/1.2.0/products.container.bundle
+# 2. validate without touching AWS (schema, channel, HTTPS in entries)
 DRY_RUN=1 release/publish-manifest.sh production
-# 3. publicar (sobrescreve mf-runtime/manifests/production.json, cache 60 s)
+# 3. publish (overwrites mf-runtime/manifests/production.json, 60 s cache)
 release/publish-manifest.sh production
-# 4. conferir o que a CDN serve
+# 4. check what the CDN serves
 curl -s "$CDN_URL/manifests/production.json" | jq '.remotes.products.releaseId'
 ```
 
-### Etapa C — o que o app faz, sozinho, na próxima abertura
+### Step C — what the app does, on its own, on the next launch
 
 ```mermaid
 sequenceDiagram
-  participant App as Host (aparelho)
+  participant App as Host (device)
   participant CF as CloudFront
   participant S3 as S3
 
-  App->>CF: no boot: GET /mf-runtime/manifests/production.json (timeout 3 s)
-  CF->>S3: (cache miss) busca o manifesto
-  S3-->>CF: manifesto
-  CF-->>App: manifesto (cache 60 s)
-  App->>App: enabled? compatível (runtimeApi/versões/faixa do host)?
-  alt habilitado e compatível
-    App->>CF: GET .../products/<plataforma>/<versão>/products.container.bundle
-    CF-->>App: container (cache 1 ano, imutável)
-    App->>App: renderiza o ProductCard do remote
-  else desligado ou incompatível
-    App->>App: fallback local (sem baixar bundle)
+  App->>CF: on boot: GET /mf-runtime/manifests/production.json (3 s timeout)
+  CF->>S3: (cache miss) fetch the manifest
+  S3-->>CF: manifest
+  CF-->>App: manifest (60 s cache)
+  App->>App: enabled? compatible (runtimeApi/versions/host range)?
+  alt enabled and compatible
+    App->>CF: GET .../products/<platform>/<version>/products.container.bundle
+    CF-->>App: container (1 year cache, immutable)
+    App->>App: renders the remote's ProductCard
+  else disabled or incompatible
+    App->>App: local fallback (no bundle download)
   end
 ```
 
-- Só o **manifesto** muda entre releases de config; o host **não passa pela loja**.
-- O CloudFront respeita o `max-age=60`: em até 1 min todos os pontos de presença servem o
-  manifesto novo, **sem invalidation**.
-- O app lê o manifesto **uma vez por execução**. Quem está com o app aberto só vê a mudança ao
-  reabrir.
+- Only the **manifest** changes between config releases; the host **does not go through the
+  store**.
+- CloudFront honors `max-age=60`: within 1 min every edge serves the new manifest, **with no
+  invalidation**.
+- The app reads the manifest **once per run**. Anyone with the app already open only sees the
+  change on relaunch.
 
-## Operações (sem rebuild do host)
+## Operations (no host rebuild)
 
-| Ação | Como | Efeito |
-|------|------|--------|
-| **Kill switch** | publicar o manifesto com `enabled: false` | todos caem no fallback na próxima abertura |
-| **Rollback** | publicar o manifesto com o `releaseId`/`entries` da versão anterior | volta sem loja (o bundle antigo ainda está lá, imutável) |
-| **Novo release** | `publish-remote.sh` nova versão → apontar manifesto → `publish-manifest.sh` | rollout da versão nova |
-| **Exigir host novo** | subir `minHostVersion` | apps antigos caem no fallback **antes** de baixar o bundle; só resolve publicando host novo na loja |
+| Action | How | Effect |
+|--------|-----|--------|
+| **Kill switch** | publish the manifest with `enabled: false` | everyone falls back to local on next launch |
+| **Rollback** | publish the manifest with the previous version's `releaseId`/`entries` | reverts without the store (the old bundle is still there, immutable) |
+| **New release** | `publish-remote.sh` new version → point manifest → `publish-manifest.sh` | rolls out the new version |
+| **Require a new host** | bump `minHostVersion` | old apps fall back **before** downloading the bundle; only a new host in the store fixes it |
 
-## O lado do host (o que falta ligar no demo)
+## The host side (what's left to wire in the demo)
 
-Hoje o `host-app/index.js` **embute** o manifesto:
+Today `host-app/index.js` **embeds** the manifest:
 ```js
-import manifest from './manifest.json';   // lido do bundle, no build
+import manifest from './manifest.json';   // read from the bundle, at build time
 ```
-Para consumir esta pasta, o host passa a **buscar o manifesto da CDN no boot**, com o embutido
-como fallback offline:
+To consume this folder, the host instead **fetches the manifest from the CDN on boot**, with the
+embedded one as an offline fallback:
 
 ```js
 const CDN_URL = 'https://d111111abcdef8.cloudfront.net/mf-runtime';
-const CHANNEL = 'production'; // injetado no build por canal
+const CHANNEL = 'production'; // injected at build per channel
 import embedded from './manifest.json';
 
 async function loadManifest() {
@@ -127,25 +128,25 @@ async function loadManifest() {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const manifest = await res.json();
-    if (manifest.channel !== CHANNEL) throw new Error('canal divergente');
-    return manifest;                       // ← manifesto da CDN
+    if (manifest.channel !== CHANNEL) throw new Error('channel mismatch');
+    return manifest;                       // ← manifest from the CDN
   } catch (e) {
-    console.warn('[release] manifesto remoto indisponível, usando o embutido', e);
+    console.warn('[release] remote manifest unavailable, using the embedded one', e);
     return embedded;                       // ← fallback
   }
 }
 ```
-A partir daí, o mesmo `filter` por `enabled` + `compatibility` (que já existe no `index.js`)
-monta o resolver do `ScriptManager`. O `todo-mf` faz exatamente isso em
-`apps/host/release/manifest.ts`.
+From there, the same `filter` by `enabled` + `compatibility` (already in `index.js`) builds the
+`ScriptManager` resolver. `todo-mf` does exactly this in `apps/host/release/manifest.ts`.
 
-## Setup inicial (uma vez)
+## Initial setup (once)
 
 ```bash
 cp release/cdn.env.example release/cdn.env
-# preencha CDN_BUCKET, CDN_URL, CDN_PREFIX, CDN_AWS_PROFILE, CDN_ACCOUNT_ID
+# fill in CDN_BUCKET, CDN_URL, CDN_PREFIX, CDN_AWS_PROFILE, CDN_ACCOUNT_ID
 ```
 
-Infra na AWS (resumo): bucket **privado**, acesso só via **CloudFront OAC**, distribuição com
-*redirect HTTP→HTTPS* e cache policy `CachingOptimized`. O cache respeita o `Cache-Control` de
-cada arquivo — por isso **não é preciso invalidation**.
+AWS infra (summary): **private** bucket, access only via **CloudFront OAC**, distribution with
+*redirect HTTP→HTTPS* and the `CachingOptimized` cache policy. The cache honors each file's
+`Cache-Control` — which is why **no invalidation is needed**.
+```
