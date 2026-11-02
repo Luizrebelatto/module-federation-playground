@@ -1,63 +1,63 @@
-# Host — guia de implementação passo a passo
+# Host — step-by-step implementation guide
 
-Este guia leva o `apps/host` do template Expo até o host descrito no [README raiz](../../README.md):
+This guide takes `apps/host` from the Expo template to the host described in the [root README](../../README.md):
 
-> **Host**: app Expo/React Native que inicializa runtime e navegação, lê configuração de releases e contém uma tela Todo local que serve de fallback.
+> **Host**: Expo/React Native app that initializes runtime and navigation, reads the release configuration, and contains a local Todo screen that serves as a fallback.
 
-Cada passo diz **o que fazer**, **para que serve** e **como verificar**. A ordem é proposital: primeiro o app funciona 100% local (sem rede, sem remote); só depois entra Module Federation. Assim, quando algo quebrar, você sabe se o problema é do app ou da federação.
+Each step says **what to do**, **why it matters**, and **how to verify**. The order is deliberate: first the app works 100% locally (no network, no remote); only then does Module Federation come in. That way, when something breaks, you know whether the problem is in the app or in the federation.
 
-## Como tudo se encaixa
+## How it all fits together
 
 ```text
 App.tsx
- └─ TodoStoreProvider (store Zustand criado 1x no host, exposto como TodoStore)
+ └─ TodoStoreProvider (Zustand store created once in the host, exposed as TodoStore)
      └─ NavigationContainer
          ├─ Home
-         ├─ LocalTodo ──────────────► LocalTodoScreen (embarcada)
+         ├─ LocalTodo ──────────────► LocalTodoScreen (embedded)
          └─ Todo
-             └─ RemoteErrorBoundary ─ erro? ─► LocalTodoScreen + aviso + retry
-                 └─ Suspense ─ carregando? ─► spinner
+             └─ RemoteErrorBoundary ─ error? ─► LocalTodoScreen + notice + retry
+                 └─ Suspense ─ loading? ─► spinner
                      └─ lazy(() =>
-                          1. loadReleaseManifest()   lê release/manifest.*.json
-                          2. resolveRemote()         escolhe entry da plataforma
-                          3. assertCompatible()      versões batem com o host?
+                          1. loadReleaseManifest()   reads release/manifest.*.json
+                          2. resolveRemote()         picks the platform entry
+                          3. assertCompatible()      versions match the host?
                           4. loadTodoScreen()        registerRemotes + loadRemote (MF runtime)
                         )
 ```
 
-## Estrutura final
+## Final structure
 
 ```text
 todo-mf/
-  packages/todo-contract/          # Passo 1
+  packages/todo-contract/          # Step 1
     package.json
     src/index.ts
   release/
-    manifest.dev.json              # Passo 6
+    manifest.dev.json              # Step 6
   apps/host/
-    App.tsx                        # Passo 4
-    rspack.config.mjs              # Passos 1 e 5
-    tsconfig.json                  # Passo 1
+    App.tsx                        # Step 4
+    rspack.config.mjs              # Steps 1 and 5
+    tsconfig.json                  # Step 1
     src/
-      store/todoStore.ts           # Passo 2 (Zustand + adapter)
-      store/TodoStoreContext.tsx   # Passo 2
-      screens/LocalTodoScreen.tsx  # Passo 3
-      screens/HomeScreen.tsx       # Passo 4
-      navigation/AppNavigation.tsx # Passo 4
-      release/manifest.ts          # Passo 6
-      release/compatibility.ts     # Passo 7
-      federation/RemoteLoadError.ts# Passo 6
-      federation/loadTodoScreen.ts # Passo 8
-      federation/telemetry.ts      # Passo 9
-      federation/RemoteErrorBoundary.tsx # Passo 9
-      screens/TodoScreen.tsx       # Passo 9
+      store/todoStore.ts           # Step 2 (Zustand + adapter)
+      store/TodoStoreContext.tsx   # Step 2
+      screens/LocalTodoScreen.tsx  # Step 3
+      screens/HomeScreen.tsx       # Step 4
+      navigation/AppNavigation.tsx # Step 4
+      release/manifest.ts          # Step 6
+      release/compatibility.ts     # Step 7
+      federation/RemoteLoadError.ts# Step 6
+      federation/loadTodoScreen.ts # Step 8
+      federation/telemetry.ts      # Step 9
+      federation/RemoteErrorBoundary.tsx # Step 9
+      screens/TodoScreen.tsx       # Step 9
 ```
 
 ---
 
-## Passo 0 — Rodar com Re.Pack, não com Metro
+## Step 0 — Run with Re.Pack, not Metro
 
-**O que fazer.** Hoje o `package.json` tem `"start": "expo start"`, e isso sobe o **Metro**. O `rspack.config.mjs` só é usado quando o bundler é o Re.Pack. Ajuste os scripts como no `mf-runtime/host-app`, que já funciona:
+**What to do.** Today `package.json` has `"start": "expo start"`, and that brings up **Metro**. `rspack.config.mjs` is only used when the bundler is Re.Pack. Adjust the scripts like in `mf-runtime/host-app`, which already works:
 
 ```json
 "scripts": {
@@ -67,15 +67,15 @@ todo-mf/
 }
 ```
 
-**Para que serve.** `react-native start` usa os comandos do Re.Pack registrados em `react-native.config.js`. O `--no-bundler` impede o `expo run` de abrir um Metro na mesma porta 8081. Sem isso, nada do que você configurar no Rspack (alias, Module Federation) entra no bundle.
+**Why it matters.** `react-native start` uses the Re.Pack commands registered in `react-native.config.js`. `--no-bundler` prevents `expo run` from opening a Metro on the same port 8081. Without it, nothing you configure in Rspack (alias, Module Federation) makes it into the bundle.
 
-**Como verificar.** Em um terminal, rode `npm start`. Em outro, rode `npm run ios`. O log do servidor precisa mostrar Rspack/Re.Pack, não Metro.
+**How to verify.** In one terminal, run `npm start`. In another, run `npm run ios`. The server log must show Rspack/Re.Pack, not Metro.
 
 ---
 
-## Passo 1 — Contrato compartilhado (`packages/todo-contract`)
+## Step 1 — Shared contract (`packages/todo-contract`)
 
-**O que fazer.** Crie o pacote com os tipos que host e remote vão usar:
+**What to do.** Create the package with the types that host and remote will use:
 
 ```json
 // packages/todo-contract/package.json
@@ -91,8 +91,8 @@ todo-mf/
 ```ts
 // packages/todo-contract/src/index.ts
 /**
- * Contrato estável entre host e remote `todo`.
- * Mudança incompatível aqui = novo major de CONTRACT_VERSION.
+ * Stable contract between host and the `todo` remote.
+ * An incompatible change here = a new major of CONTRACT_VERSION.
  */
 export const CONTRACT_VERSION = '1.0.0';
 
@@ -109,7 +109,7 @@ export interface TodoStore {
 export type TodoRemoteProps = { store: TodoStore; releaseId: string };
 ```
 
-Para o host enxergar o pacote sem configurar workspaces, use um alias no bundler e em `paths` no TypeScript:
+For the host to see the package without configuring workspaces, use an alias in the bundler and in `paths` in TypeScript:
 
 ```js
 // apps/host/rspack.config.mjs
@@ -134,18 +134,18 @@ resolve: {
 }
 ```
 
-**Para que serve.**
-- O contrato é a **única coisa** que host e remote precisam ter em comum sobre o Todo. O remote não conhece o store real, só a interface.
-- `CONTRACT_VERSION` existe em runtime, não só nos tipos. É ele que o Passo 7 compara para recusar um remote feito para outro contrato. Tipos TypeScript somem no build e não protegem nada em produção.
-- `TodoRemoteProps` define que o store **chega por prop**. Assim não há dois React Contexts (um do host, outro do remote) atravessando o limite federado.
+**Why it matters.**
+- The contract is the **only thing** host and remote need to have in common about the Todo. The remote does not know the real store, only the interface.
+- `CONTRACT_VERSION` exists at runtime, not just in the types. It is what Step 7 compares to reject a remote built for a different contract. TypeScript types vanish at build time and protect nothing in production.
+- `TodoRemoteProps` defines that the store **arrives by prop**. This way there are not two React Contexts (one from the host, one from the remote) crossing the federated boundary.
 
-**Como verificar.** Rode `npx tsc --noEmit` em `apps/host`. Um `import type { Todo } from '@todo-mf/todo-contract'` em qualquer arquivo precisa resolver sem erro.
+**How to verify.** Run `npx tsc --noEmit` in `apps/host`. An `import type { Todo } from '@todo-mf/todo-contract'` in any file must resolve without error.
 
 ---
 
-## Passo 2 — Store do Todo com Zustand e escrita serializada
+## Step 2 — Todo store with Zustand and serialized writes
 
-**O que fazer.**
+**What to do.**
 
 ```bash
 cd apps/host
@@ -175,11 +175,11 @@ const createTodoState = (initial: readonly Todo[]) =>
       const run = queue.then(() => {
         set((state) => {
           const next = update(state.todos);
-          // Devolver o mesmo state faz o Zustand não notificar ninguém.
+          // Returning the same state makes Zustand notify no one.
           return next === state.todos ? state : { todos: next };
         });
       });
-      // Uma mutação que falhou não pode travar as próximas.
+      // A failed mutation must not block the following ones.
       queue = run.catch(() => undefined);
       return run;
     };
@@ -196,7 +196,7 @@ const createTodoState = (initial: readonly Todo[]) =>
     };
   });
 
-// Adapter: o Zustand é detalhe de implementação do host; para fora só sai o contrato.
+// Adapter: Zustand is a host implementation detail; only the contract leaves the boundary.
 export function createTodoStore(initial: readonly Todo[] = []): TodoStore {
   const state = createTodoState(initial);
   const { add, toggle, remove } = state.getState();
@@ -216,7 +216,7 @@ export function createTodoStore(initial: readonly Todo[] = []): TodoStore {
 import { createContext, useContext, useSyncExternalStore, type ReactNode } from 'react';
 import type { TodoStore } from '@todo-mf/todo-contract';
 
-// Contexto só do host. O remote não usa este contexto: recebe o store por prop.
+// Host-only context. The remote does not use this context: it receives the store by prop.
 const TodoStoreContext = createContext<TodoStore | null>(null);
 
 export function TodoStoreProvider({ store, children }: { store: TodoStore; children: ReactNode }) {
@@ -234,22 +234,22 @@ export function useTodos(store: TodoStore) {
 }
 ```
 
-**Para que serve.**
-- **Zustand (`zustand/vanilla`)** guarda o estado e notifica quem está inscrito. Usamos o `createStore` *vanilla* (sem hook) porque o store vive fora do React e é criado uma vez no `App.tsx` (Passo 4).
-- **Adapter para o contrato**: `createTodoStore` devolve um `TodoStore` (Passo 1), não o store do Zustand. Assim o Zustand não entra no contrato: o remote não importa `zustand`, ele não precisa ir para o `shared` do Module Federation, e um upgrade de major (ou a troca do Zustand por outra lib) não exige host e remote sincronizados. A lib de estado fica escondida atrás da fronteira.
-- **Store fora do React** (`getSnapshot` e `subscribe`): o host passa o mesmo objeto para a tela local e para o remote, e os dois enxergam o mesmo estado. Adicionar um item no remote aparece na tela local, e o contrário também vale.
-- **`useSyncExternalStore`**: é o hook oficial do React para ler stores externos sem *tearing*, ou seja, sem partes da UI mostrando versões diferentes do estado. Ele funciona direto com o adapter: o `subscribe` do Zustand já devolve a função de unsubscribe, e `todos` só muda de referência quando muda de fato (requisito do `getSnapshot`).
-- **Fila (`queue`)**: o `set` do Zustand é síncrono, mas o Zustand **não serializa actions assíncronas**. Quando entrar persistência ou API com `await`, duas actions poderiam ler o mesmo estado antigo e uma sobrescrever a outra. Com a fila, cada escrita espera a anterior e lê o `state.todos` mais recente dentro do `set`. Com dois toques rápidos em "toggle", ou um `add` do host junto com um do remote, nenhuma atualização se perde.
-- **Actions como closures**, não `this`: `store.toggle` pode ser passado solto (`onPress={store.toggle}`) sem `bind`, inclusive pelo remote.
-- **O store é criado no host, nunca no remote.** Quem controla concorrência e persistência é o host. Quando a persistência entrar, o caminho natural é o middleware `persist` do Zustand com AsyncStorage. Como AsyncStorage tem código nativo, ele precisa estar no binário do host.
+**Why it matters.**
+- **Zustand (`zustand/vanilla`)** holds the state and notifies subscribers. We use the *vanilla* `createStore` (no hook) because the store lives outside React and is created once in `App.tsx` (Step 4).
+- **Adapter to the contract**: `createTodoStore` returns a `TodoStore` (Step 1), not the Zustand store. This way Zustand does not enter the contract: the remote does not import `zustand`, it does not need to go into Module Federation's `shared`, and a major upgrade (or swapping Zustand for another lib) does not require host and remote to be in sync. The state lib stays hidden behind the boundary.
+- **Store outside React** (`getSnapshot` and `subscribe`): the host passes the same object to the local screen and to the remote, and both see the same state. Adding an item in the remote shows up on the local screen, and vice versa.
+- **`useSyncExternalStore`**: this is React's official hook for reading external stores without *tearing*, that is, without parts of the UI showing different versions of the state. It works directly with the adapter: Zustand's `subscribe` already returns the unsubscribe function, and `todos` only changes reference when it actually changes (a requirement of `getSnapshot`).
+- **Queue (`queue`)**: Zustand's `set` is synchronous, but Zustand **does not serialize async actions**. Once persistence or an API with `await` comes in, two actions could read the same stale state and one could overwrite the other. With the queue, each write waits for the previous one and reads the most recent `state.todos` inside `set`. With two quick taps on "toggle", or an `add` from the host together with one from the remote, no update is lost.
+- **Actions as closures**, not `this`: `store.toggle` can be passed around loose (`onPress={store.toggle}`) without `bind`, including by the remote.
+- **The store is created in the host, never in the remote.** The host is what controls concurrency and persistence. When persistence comes in, the natural path is Zustand's `persist` middleware with AsyncStorage. Since AsyncStorage has native code, it must be in the host binary.
 
-**Como verificar.** Escreva um teste rápido: chame `add('a')`, `add('b')` e `toggle(...)` sem `await` entre eles e depois espere a última Promise. O snapshot precisa conter tudo. Confira também que `getSnapshot()` devolve a **mesma** referência em duas chamadas seguidas sem mutação no meio.
+**How to verify.** Write a quick test: call `add('a')`, `add('b')`, and `toggle(...)` with no `await` between them and then await the last Promise. The snapshot must contain everything. Also check that `getSnapshot()` returns the **same** reference across two consecutive calls with no mutation in between.
 
 ---
 
-## Passo 3 — Tela Todo local (o fallback)
+## Step 3 — Local Todo screen (the fallback)
 
-**O que fazer.**
+**What to do.**
 
 ```tsx
 // apps/host/src/screens/LocalTodoScreen.tsx
@@ -261,7 +261,7 @@ import { useTodos } from '../store/TodoStoreContext';
 
 type Props = {
   store: TodoStore;
-  /** Conteúdo opcional no topo (ex.: aviso de que o remote caiu no fallback). */
+  /** Optional content at the top (e.g. a notice that the remote fell back). */
   banner?: ReactNode;
 };
 
@@ -340,23 +340,23 @@ const styles = StyleSheet.create({
 });
 ```
 
-**Para que serve.**
-- É a **garantia de produto**: com remote fora do ar, manifesto quebrado ou versão incompatível, o usuário ainda consegue usar o Todo.
-- Recebe `store` por prop, igual ao remote (`TodoRemoteProps`). Assim a tela local e a remota são intercambiáveis, e o estado é preservado quando uma substitui a outra.
-- A prop `banner` existe para o Passo 9, que avisa "você está na versão local" sem criar uma segunda tela.
+**Why it matters.**
+- It is the **product guarantee**: with the remote down, a broken manifest, or an incompatible version, the user can still use the Todo.
+- It receives `store` by prop, just like the remote (`TodoRemoteProps`). This way the local screen and the remote one are interchangeable, and state is preserved when one replaces the other.
+- The `banner` prop exists for Step 9, which warns "you are on the local version" without creating a second screen.
 
-**Como verificar.** Renderize temporariamente `<LocalTodoScreen store={createTodoStore()} />` no `App.tsx` e teste o CRUD **em modo avião**.
+**How to verify.** Temporarily render `<LocalTodoScreen store={createTodoStore()} />` in `App.tsx` and test the CRUD **in airplane mode**.
 
 ---
 
-## Passo 4 — Navegação
+## Step 4 — Navigation
 
-**O que fazer.** Instale o React Navigation com o native stack:
+**What to do.** Install React Navigation with the native stack:
 
 ```bash
 cd apps/host
 npx expo install @react-navigation/native @react-navigation/native-stack react-native-screens react-native-safe-area-context
-npm run ios   # rebuild nativo obrigatório (react-native-screens e safe-area têm código nativo)
+npm run ios   # mandatory native rebuild (react-native-screens and safe-area have native code)
 ```
 
 ```tsx
@@ -411,7 +411,7 @@ export function AppNavigation() {
 ```
 
 ```tsx
-// apps/host/src/screens/LocalTodoRoute.tsx — rota que liga a tela local ao store do contexto
+// apps/host/src/screens/LocalTodoRoute.tsx — route that wires the local screen to the context store
 import { useTodoStore } from '../store/TodoStoreContext';
 import { LocalTodoScreen } from './LocalTodoScreen';
 
@@ -428,7 +428,7 @@ import { AppNavigation } from './src/navigation/AppNavigation';
 import { createTodoStore } from './src/store/todoStore';
 import { TodoStoreProvider } from './src/store/TodoStoreContext';
 
-// Criado uma vez, fora do componente: sobrevive a re-renders e é o mesmo para host e remote.
+// Created once, outside the component: survives re-renders and is the same for host and remote.
 const todoStore = createTodoStore();
 
 export default function App() {
@@ -441,29 +441,29 @@ export default function App() {
 }
 ```
 
-> Enquanto o Passo 9 não estiver pronto, faça a rota `Todo` apontar para `LocalTodoRoute`.
+> Until Step 9 is ready, make the `Todo` route point to `LocalTodoRoute`.
 
-**Para que serve.**
-- A navegação é do **host**. O remote vira só uma tela dentro dela, sem `NavigationContainer` próprio e sem segunda árvore raiz. Se o remote quebrar, Home e as outras rotas continuam funcionando (**isolamento de falha**).
-- Ter uma rota `LocalTodo` separada ajuda a testar e comparar: as duas telas compartilham o store.
-- **Por que React Navigation e não Expo Router?** O `AGENTS.md` sugere Expo Router, mas ele depende de recursos do Metro (descoberta de rotas por arquivos via transform/config do Metro). Como este host usa Re.Pack no lugar do Metro, o React Navigation é a opção sem integração extra. O Expo Router por baixo também usa React Navigation.
-- **Por que rebuild?** `react-native-screens` e `react-native-safe-area-context` têm código nativo. Lembre do limite 1 do README raiz: um remote **nunca** pode trazer dependência nativa que o binário do host não tenha.
+**Why it matters.**
+- Navigation belongs to the **host**. The remote becomes just one screen inside it, with no `NavigationContainer` of its own and no second root tree. If the remote breaks, Home and the other routes keep working (**fault isolation**).
+- Having a separate `LocalTodo` route helps to test and compare: the two screens share the store.
+- **Why React Navigation and not Expo Router?** `AGENTS.md` suggests Expo Router, but it depends on Metro features (file-based route discovery via Metro's transform/config). Since this host uses Re.Pack instead of Metro, React Navigation is the option with no extra integration. Expo Router also uses React Navigation underneath.
+- **Why rebuild?** `react-native-screens` and `react-native-safe-area-context` have native code. Remember limit 1 from the root README: a remote can **never** bring in a native dependency that the host binary does not have.
 
-**Como verificar.** O app abre na Home, você navega para as duas rotas e o estado é o mesmo nas duas.
+**How to verify.** The app opens on Home, you navigate to both routes, and the state is the same in both.
 
 ---
 
-## Passo 5 — Inicializar o runtime de Module Federation
+## Step 5 — Initialize the Module Federation runtime
 
-**O que fazer.**
+**What to do.**
 
 ```bash
 cd apps/host
-npm install @module-federation/enhanced@2.9.2   # mesma versão do mf-runtime/host-app
+npm install @module-federation/enhanced@2.9.2   # same version as mf-runtime/host-app
 ```
 
 ```js
-// apps/host/rspack.config.mjs  (dentro de plugins)
+// apps/host/rspack.config.mjs  (inside plugins)
 plugins: [
   new Repack.RepackPlugin(),
   new ExpoModulesPlugin(),
@@ -477,22 +477,22 @@ plugins: [
 ],
 ```
 
-**Para que serve.**
-- O `ModuleFederationPluginV2` injeta no bundle do host o **runtime de MF**: o código que sabe registrar remotes, baixar o container e negociar dependências compartilhadas. Também adiciona os plugins de runtime do Re.Pack (`core-plugin` e `resolver-plugin`), que fazem o download passar pelo `ScriptManager`, o carregador nativo de scripts do Re.Pack.
-- O Re.Pack **exige** `@module-federation/enhanced` instalado: o plugin lança erro se não encontrar o pacote. Ele também fornece `@module-federation/enhanced/runtime`, usado no Passo 8.
-- **`shared` com `singleton: true`**: só pode existir **uma** cópia de React e de React Native no processo. Duas cópias de React = hooks quebrando ("Invalid hook call").
-- **`eager: true`** no host: React/RN vão no bundle principal, porque o host precisa deles antes de qualquer remote existir.
-- **`requiredVersion` exata**: o remote precisa usar exatamente essas versões. O `singleton` evita duplicar, mas não torna versões diferentes compatíveis.
-- **`zustand` fica fora do `shared`, de propósito.** Ele é detalhe interno do host (Passo 2); o remote só conhece o contrato `TodoStore`. Só entraria aqui como singleton se o remote passasse a importar Zustand.
-- **Sem `remotes` aqui, de propósito.** No `mf-runtime` o remote fica fixo no config (`products@dynamic`). Aqui a URL vem do **manifesto de releases** (Passo 6). Por isso dá para trocar a versão ou fazer rollback sem rebuildar o host.
+**Why it matters.**
+- `ModuleFederationPluginV2` injects the **MF runtime** into the host bundle: the code that knows how to register remotes, download the container, and negotiate shared dependencies. It also adds Re.Pack's runtime plugins (`core-plugin` and `resolver-plugin`), which route the download through `ScriptManager`, Re.Pack's native script loader.
+- Re.Pack **requires** `@module-federation/enhanced` to be installed: the plugin throws an error if it cannot find the package. It also provides `@module-federation/enhanced/runtime`, used in Step 8.
+- **`shared` with `singleton: true`**: there can be only **one** copy of React and of React Native in the process. Two copies of React = broken hooks ("Invalid hook call").
+- **`eager: true`** in the host: React/RN go into the main bundle, because the host needs them before any remote exists.
+- **Exact `requiredVersion`**: the remote must use exactly these versions. `singleton` avoids duplication, but it does not make different versions compatible.
+- **`zustand` stays out of `shared`, on purpose.** It is an internal host detail (Step 2); the remote only knows the `TodoStore` contract. It would only come in here as a singleton if the remote started importing Zustand.
+- **No `remotes` here, on purpose.** In `mf-runtime` the remote is fixed in the config (`products@dynamic`). Here the URL comes from the **release manifest** (Step 6). That is why you can change the version or roll back without rebuilding the host.
 
-**Como verificar.** `npm start` compila sem erro e o app abre igual ao Passo 4. Nada muda visualmente: o runtime está lá, só ainda não é usado.
+**How to verify.** `npm start` compiles without error and the app opens just like in Step 4. Nothing changes visually: the runtime is there, it is just not used yet.
 
 ---
 
-## Passo 6 — Manifesto de releases e leitura dele
+## Step 6 — Release manifest and reading it
 
-**O que fazer.** Crie o manifesto na raiz do monorepo:
+**What to do.** Create the manifest at the root of the monorepo:
 
 ```json
 // release/manifest.dev.json
@@ -521,9 +521,9 @@ plugins: [
 }
 ```
 
-> ⚠️ O caminho exato do `entry` (`/ios/todo_remote.container.js.bundle`) só pode ser confirmado quando o `todo-remote` existir: depende do `filename` e de como o dev server do Re.Pack serve o container. Ajuste aqui, porque é o único lugar que precisa mudar.
+> ⚠️ The exact `entry` path (`/ios/todo_remote.container.js.bundle`) can only be confirmed once the `todo-remote` exists: it depends on the `filename` and on how Re.Pack's dev server serves the container. Adjust it here, because it is the only place that needs to change.
 
-Um tipo de erro com a **fase** da falha, usado por todo o resto:
+An error type carrying the **phase** of the failure, used by everything else:
 
 ```ts
 // apps/host/src/federation/RemoteLoadError.ts
@@ -539,7 +539,7 @@ export class RemoteLoadError extends Error {
     this.name = 'RemoteLoadError';
   }
 
-  /** Manifesto e compatibilidade não mudam num retry; download/timeout podem. */
+  /** Manifest and compatibility do not change on a retry; download/timeout can. */
   get retryable() {
     return this.phase !== 'manifest' && this.phase !== 'compatibility';
   }
@@ -550,7 +550,7 @@ export function phaseOf(error: unknown): RemotePhase {
 }
 ```
 
-O leitor do manifesto:
+The manifest reader:
 
 ```ts
 // apps/host/src/release/manifest.ts
@@ -582,10 +582,10 @@ export type ReleaseManifest = {
   remotes: Record<string, RemoteRelease>;
 };
 
-/** Release já resolvida para a plataforma atual: é o que o loader consome. */
+/** Release already resolved for the current platform: this is what the loader consumes. */
 export type ResolvedRemote = Omit<RemoteRelease, 'entries'> & { name: string; entry: string };
 
-// URL do manifesto publicado (CDN). `null` = usar só o manifesto embarcado no binário.
+// Published manifest URL (CDN). `null` = use only the manifest embedded in the binary.
 const MANIFEST_URL: string | null = null;
 const MANIFEST_TIMEOUT_MS = 3000;
 
@@ -637,7 +637,7 @@ async function fetchManifest(url: string): Promise<ReleaseManifest> {
 
 let manifestPromise: Promise<ReleaseManifest> | null = null;
 
-/** Lê a configuração de releases uma vez por sessão. */
+/** Reads the release configuration once per session. */
 export function loadReleaseManifest(): Promise<ReleaseManifest> {
   manifestPromise ??= (async () => {
     if (MANIFEST_URL) {
@@ -665,22 +665,22 @@ export function resolveRemote(manifest: ReleaseManifest, name: string): Resolved
 }
 ```
 
-**Para que serve.**
-- O manifesto é o **ponteiro** "qual versão do remote este app deve usar". Trocar o ponteiro faz deploy ou **rollback** sem passar pelas lojas. Os artefatos do remote são imutáveis, e o que muda é só para onde o manifesto aponta.
-- **`entries` por plataforma**: o bundle de iOS e o de Android são artefatos diferentes (limite 4 do README raiz).
-- **`enabled`**: um *kill switch*. Com `false`, todo mundo cai na tela local na hora.
-- **`compatibility`**: os metadados que o Passo 7 compara com o host.
-- **Manifesto embarcado + remoto opcional**: hoje `MANIFEST_URL = null` e só o JSON embutido no binário é usado. No passo da CDN você preenche a URL. Se o manifesto remoto falhar (rede, timeout de 3s, schema inválido), o host **cai no embarcado** em vez de quebrar.
-- **Validação de schema**: um JSON malformado vindo da rede não pode virar URL de script executável.
-- **Memoizado** (`manifestPromise`): é lido uma vez por sessão, mesmo que várias telas peçam.
+**Why it matters.**
+- The manifest is the **pointer** "which version of the remote this app should use". Changing the pointer performs a deploy or **rollback** without going through the app stores. The remote's artifacts are immutable, and all that changes is where the manifest points.
+- **`entries` per platform**: the iOS bundle and the Android bundle are different artifacts (limit 4 from the root README).
+- **`enabled`**: a *kill switch*. With `false`, everyone falls back to the local screen immediately.
+- **`compatibility`**: the metadata that Step 7 compares against the host.
+- **Embedded manifest + optional remote**: today `MANIFEST_URL = null` and only the JSON embedded in the binary is used. In the CDN step you fill in the URL. If the remote manifest fails (network, 3s timeout, invalid schema), the host **falls back to the embedded one** instead of breaking.
+- **Schema validation**: a malformed JSON coming from the network must not become the URL of an executable script.
+- **Memoized** (`manifestPromise`): it is read once per session, even if several screens ask for it.
 
-**Como verificar.** Logue `await loadReleaseManifest()` e `resolveRemote(..., 'todo')`. Mude `enabled` para `false` e confira que `resolveRemote` lança `RemoteLoadError` com `phase: 'manifest'`.
+**How to verify.** Log `await loadReleaseManifest()` and `resolveRemote(..., 'todo')`. Change `enabled` to `false` and check that `resolveRemote` throws `RemoteLoadError` with `phase: 'manifest'`.
 
 ---
 
-## Passo 7 — Checagem de compatibilidade
+## Step 7 — Compatibility check
 
-**O que fazer.**
+**What to do.**
 
 ```ts
 // apps/host/src/release/compatibility.ts
@@ -692,7 +692,7 @@ import appConfig from '../../app.json';
 import { RemoteLoadError } from '../federation/RemoteLoadError';
 import type { ResolvedRemote } from './manifest';
 
-/** Versão da API de runtime que este binário host oferece aos remotes. */
+/** Runtime API version that this host binary offers to remotes. */
 export const HOST_RUNTIME_API = 1;
 
 const { major, minor, patch } = Platform.constants.reactNativeVersion;
@@ -735,22 +735,22 @@ export function assertCompatible(remote: ResolvedRemote, host = hostInfo) {
 }
 ```
 
-**Para que serve.**
-- Recusa o remote **antes de baixar e executar** o código. Um remote incompatível que chega a rodar pode quebrar de formas difíceis de diagnosticar, como hooks inválidos, props faltando ou módulo nativo inexistente.
-- Cada regra cobre um risco diferente:
-  - `react` / `reactNative` **exatos**: o remote foi compilado contra o mesmo runtime JS e nativo.
-  - `contract` (mesmo **major**): o remote espera o mesmo formato de `TodoStore`/`TodoRemoteProps`. Minor e patch são compatíveis por definição.
-  - `runtimeApi`: número que você incrementa quando o **binário** muda algo que os remotes usam, como um módulo nativo novo ou removido.
-  - `minHostVersion` / `maxHostVersionExclusive`: faixa de versões do app (`app.json → expo.version`) em que o remote foi testado.
-- Retorna **todos** os problemas de uma vez na mensagem, o que facilita o diagnóstico pela telemetria.
+**Why it matters.**
+- It rejects the remote **before downloading and running** the code. An incompatible remote that gets to run can break in ways that are hard to diagnose, such as invalid hooks, missing props, or a nonexistent native module.
+- Each rule covers a different risk:
+  - `react` / `reactNative` **exact**: the remote was compiled against the same JS and native runtime.
+  - `contract` (same **major**): the remote expects the same shape of `TodoStore`/`TodoRemoteProps`. Minor and patch are compatible by definition.
+  - `runtimeApi`: a number you increment when the **binary** changes something the remotes use, such as a native module added or removed.
+  - `minHostVersion` / `maxHostVersionExclusive`: the range of app versions (`app.json → expo.version`) the remote was tested against.
+- It returns **all** the problems at once in the message, which makes diagnosis via telemetry easier.
 
-**Como verificar.** No manifesto, mude `"react": "19.0.0"` e confira que `assertCompatible` lança um erro de `phase: 'compatibility'` com a mensagem explicando o motivo.
+**How to verify.** In the manifest, change `"react": "19.0.0"` and check that `assertCompatible` throws an error with `phase: 'compatibility'` and a message explaining why.
 
 ---
 
-## Passo 8 — Loader do remote (cache de Promise + timeout)
+## Step 8 — Remote loader (Promise cache + timeout)
 
-**O que fazer.**
+**What to do.**
 
 ```ts
 // apps/host/src/federation/loadTodoScreen.ts
@@ -765,16 +765,16 @@ const LOAD_TIMEOUT_MS = 10_000;
 
 type TodoScreenComponent = ComponentType<TodoRemoteProps>;
 
-// Pedidos simultâneos para o mesmo release compartilham a mesma Promise.
+// Simultaneous requests for the same release share the same Promise.
 const inFlight = new Map<string, Promise<TodoScreenComponent>>();
-// container -> entry registrado no runtime MF.
+// container -> entry registered in the MF runtime.
 const registered = new Map<string, string>();
 
 function loadOnce(key: string, load: () => Promise<TodoScreenComponent>) {
   const existing = inFlight.get(key);
   if (existing) return existing;
   const promise = load().catch((error) => {
-    inFlight.delete(key); // permite retry posterior
+    inFlight.delete(key); // allows a later retry
     throw error;
   });
   inFlight.set(key, promise);
@@ -795,7 +795,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, releaseId: string) {
 function register(release: ResolvedRemote) {
   const current = registered.get(release.container);
   if (current === release.entry) return;
-  // `force` troca o entry de um container já registrado (ex.: rollback no manifesto).
+  // `force` swaps the entry of an already-registered container (e.g. rollback in the manifest).
   registerRemotes([{ name: release.container, entry: release.entry }], { force: current !== undefined });
   registered.set(release.container, release.entry);
 }
@@ -824,21 +824,21 @@ export function loadTodoScreen(release: ResolvedRemote): Promise<TodoScreenCompo
 }
 ```
 
-**Para que serve.**
-- **`registerRemotes` em runtime** substitui o `remotes: {...}` fixo do config. O container e a URL vêm do manifesto. O `resolver-plugin` do Re.Pack ouve esse registro e passa a resolver os scripts daquele container a partir do `entry`.
-- **`loadRemote('todo_remote/TodoScreen')`** baixa o container, inicializa o share scope (React/RN do host) e devolve o módulo exposto.
-- **`loadOnce` (cache de Promise)**: se o preload e a navegação pedirem o remote ao mesmo tempo, há **uma** carga só. Se a carga falhar, a Promise sai do cache, então o retry faz uma tentativa nova de verdade.
-- **Timeout**: rede ruim não pode deixar o usuário vendo spinner para sempre. Depois de 10s, o fluxo cai no fallback. Atenção: o timeout só **para de esperar**, não cancela o download em andamento.
-- **Fase `load` junta download e avaliação**: o `core-plugin` do Re.Pack captura o erro de download e só loga `Failed to load remote entry`, então o host não consegue distinguir as duas. Se precisar separar, dá para criar um runtime plugin próprio (hook `errorLoadRemote`).
-- **Checa `mod.default`**: um remote que exporta errado é tratado como falha de carga, não como crash na renderização.
+**Why it matters.**
+- **`registerRemotes` at runtime** replaces the fixed `remotes: {...}` in the config. The container and the URL come from the manifest. Re.Pack's `resolver-plugin` listens to this registration and starts resolving that container's scripts from the `entry`.
+- **`loadRemote('todo_remote/TodoScreen')`** downloads the container, initializes the share scope (the host's React/RN), and returns the exposed module.
+- **`loadOnce` (Promise cache)**: if the preload and the navigation ask for the remote at the same time, there is only **one** load. If the load fails, the Promise leaves the cache, so a retry makes a genuinely new attempt.
+- **Timeout**: a bad network must not leave the user staring at a spinner forever. After 10s, the flow falls back. Note: the timeout only **stops waiting**, it does not cancel the download in progress.
+- **The `load` phase bundles download and evaluation**: Re.Pack's `core-plugin` catches the download error and only logs `Failed to load remote entry`, so the host cannot tell the two apart. If you need to separate them, you can create your own runtime plugin (the `errorLoadRemote` hook).
+- **Checks `mod.default`**: a remote that exports incorrectly is treated as a load failure, not as a render crash.
 
-**Como verificar.** Chame `loadTodoScreen(release)` duas vezes seguidas sem `await` e confira que as duas Promises são **a mesma** (`===`). Sem remote rodando, a Promise rejeita com `phase: 'load'` (porta fechada) ou `'timeout'`.
+**How to verify.** Call `loadTodoScreen(release)` twice in a row with no `await` and check that the two Promises are **the same** (`===`). With no remote running, the Promise rejects with `phase: 'load'` (closed port) or `'timeout'`.
 
 ---
 
-## Passo 9 — Error Boundary, telemetria e a tela federada
+## Step 9 — Error Boundary, telemetry, and the federated screen
 
-**O que fazer.** Telemetria:
+**What to do.** Telemetry:
 
 ```ts
 // apps/host/src/federation/telemetry.ts
@@ -853,19 +853,19 @@ export type RemoteFallbackEvent = {
   error: unknown;
 };
 
-// Só nome + mensagem truncada: nunca enviar conteúdo das tarefas do usuário.
+// Only name + truncated message: never send the content of the user's tasks.
 function sanitize(error: unknown) {
   if (error instanceof Error) return { name: error.name, message: error.message.slice(0, 200) };
   return { name: 'UnknownError', message: String(error).slice(0, 200) };
 }
 
-/** Ponto único de telemetria; troque o console por Sentry/Datadog/etc. depois. */
+/** Single telemetry point; swap the console for Sentry/Datadog/etc. later. */
 export function reportRemoteFallback({ remote, releaseId, phase, error }: RemoteFallbackEvent) {
   console.warn('[remote_fallback]', { remote, releaseId, phase, platform: Platform.OS, error: sanitize(error) });
 }
 ```
 
-O boundary:
+The boundary:
 
 ```tsx
 // apps/host/src/federation/RemoteErrorBoundary.tsx
@@ -896,7 +896,7 @@ export class RemoteErrorBoundary extends Component<Props, State> {
 }
 ```
 
-A tela que junta tudo:
+The screen that ties it all together:
 
 ```tsx
 // apps/host/src/screens/TodoScreen.tsx
@@ -919,8 +919,8 @@ export function TodoScreen() {
   const [attempt, setAttempt] = useState(0);
   const releaseIdRef = useRef<string | undefined>(undefined);
 
-  // React.lazy guarda o resultado (inclusive a rejeição) para sempre;
-  // por isso criamos um lazy novo a cada tentativa.
+  // React.lazy keeps the result (including the rejection) forever;
+  // so we create a new lazy on each attempt.
   const RemoteTodo = useMemo(
     () =>
       lazy(async () => {
@@ -935,7 +935,7 @@ export function TodoScreen() {
 
   return (
     <RemoteErrorBoundary
-      key={attempt} // trocar a key remonta o boundary = limpa o erro
+      key={attempt} // changing the key remounts the boundary = clears the error
       onError={(error) =>
         reportRemoteFallback({ remote: 'todo', releaseId: releaseIdRef.current, phase: phaseOf(error), error })
       }
@@ -969,40 +969,40 @@ const styles = StyleSheet.create({
 });
 ```
 
-Por fim, em `AppNavigation`, aponte a rota `Todo` para este `TodoScreen`.
+Finally, in `AppNavigation`, point the `Todo` route to this `TodoScreen`.
 
-**Para que serve.**
-- **`Suspense`** cobre a **espera** (manifesto + download) com um spinner.
-- **`RemoteErrorBoundary`** cobre o **erro**: rejeição do `lazy` (fases manifest, compatibility, load e timeout) **e** exceção durante a renderização do remote (fase render). Sem ele, um `throw` no remote derrubaria o app inteiro. Com ele, a falha fica contida nesta rota.
-- Precisa ser **componente de classe**: o React só oferece `getDerivedStateFromError`/`componentDidCatch` em classes.
-- **Fallback = `LocalTodoScreen` com o mesmo store**: o usuário não perde as tarefas quando o remote falha, mesmo que falhe no meio do uso.
-- **Retry limitado (`MAX_RETRIES`)**: evita loop infinito de downloads. Erros de manifesto e de compatibilidade **não** oferecem retry, porque tentar de novo daria o mesmo resultado.
-- **Telemetria com fase e `releaseId`**: em produção você precisa saber *qual release*, *em que plataforma* e *em que etapa* falhou, para decidir o rollback. `sanitize` garante que nenhum título de tarefa vaze.
-- **O `releaseId` é passado ao remote**: o remote também consegue logar e exibir a própria versão.
+**Why it matters.**
+- **`Suspense`** covers the **wait** (manifest + download) with a spinner.
+- **`RemoteErrorBoundary`** covers the **error**: a `lazy` rejection (the manifest, compatibility, load, and timeout phases) **and** an exception during the remote's rendering (the render phase). Without it, a `throw` in the remote would take down the whole app. With it, the failure stays contained within this route.
+- It must be a **class component**: React only offers `getDerivedStateFromError`/`componentDidCatch` in classes.
+- **Fallback = `LocalTodoScreen` with the same store**: the user does not lose their tasks when the remote fails, even if it fails mid-use.
+- **Limited retry (`MAX_RETRIES`)**: avoids an infinite loop of downloads. Manifest and compatibility errors do **not** offer a retry, because trying again would give the same result.
+- **Telemetry with phase and `releaseId`**: in production you need to know *which release*, *on which platform*, and *at which step* it failed, in order to decide on the rollback. `sanitize` ensures no task title leaks.
+- **The `releaseId` is passed to the remote**: the remote can also log and display its own version.
 
-**Como verificar.** Esta é a parte boa: **o fallback dá para testar sem ter o remote.**
-1. Sem nada rodando na porta 9000, abra "Todo (remote, com fallback)". Aparece o spinner, depois a tela local com o aviso amarelo, e o log mostra `[remote_fallback] { phase: 'load', ... }`.
-2. "Tentar novamente" aparece 2 vezes e depois some.
-3. No manifesto, `"enabled": false` cai direto no local, sem botão de retry (`phase: 'manifest'`).
-4. No manifesto, `"reactNative": "0.0.0"` dá `phase: 'compatibility'`, sem retry.
-5. Adicione tarefas na tela local, entre na rota Todo e volte: as tarefas continuam lá (o store é o mesmo).
+**How to verify.** This is the good part: **the fallback can be tested without having the remote.**
+1. With nothing running on port 9000, open "Todo (remote, com fallback)". The spinner appears, then the local screen with the yellow notice, and the log shows `[remote_fallback] { phase: 'load', ... }`.
+2. "Tentar novamente" appears twice and then disappears.
+3. In the manifest, `"enabled": false` falls straight to the local screen, with no retry button (`phase: 'manifest'`).
+4. In the manifest, `"reactNative": "0.0.0"` gives `phase: 'compatibility'`, with no retry.
+5. Add tasks on the local screen, go into the Todo route and come back: the tasks are still there (the store is the same).
 
 ---
 
-## Checklist final
+## Final checklist
 
-| Item da definição de host | Onde |
+| Item from the host definition | Where |
 |---|---|
-| Inicializa runtime (Module Federation) | Passo 5 (`rspack.config.mjs`) + Passo 8 (`registerRemotes`/`loadRemote`) |
-| Navegação | Passo 4 |
-| Lê configuração de releases | Passo 6 (manifesto) + Passo 7 (compatibilidade) |
-| Tela Todo local (fallback) | Passos 2 e 3 |
-| Error Boundary que cai no fallback | Passo 9 |
+| Initializes runtime (Module Federation) | Step 5 (`rspack.config.mjs`) + Step 8 (`registerRemotes`/`loadRemote`) |
+| Navigation | Step 4 |
+| Reads the release configuration | Step 6 (manifest) + Step 7 (compatibility) |
+| Local Todo screen (fallback) | Steps 2 and 3 |
+| Error Boundary that falls back | Step 9 |
 
-Rode `npx tsc --noEmit` ao fim de cada passo.
+Run `npx tsc --noEmit` at the end of each step.
 
-## Próximos passos (fora do host)
+## Next steps (outside the host)
 
-- Criar `apps/todo-remote` expondo `./TodoScreen` com `ModuleFederationPluginV2({ name: 'todo_remote', exposes: {...}, shared: <igual ao host> })`, e então confirmar a URL do `entry` no manifesto.
-- Persistência do store com o middleware `persist` do Zustand + AsyncStorage (a fila do Passo 2 já está pronta para escritas assíncronas).
-- "Último release bom" + `manifest.staging.json` / `manifest.prod.json` + `MANIFEST_URL` apontando para a CDN (Passos 7 e 9 do README raiz).
+- Create `apps/todo-remote` exposing `./TodoScreen` with `ModuleFederationPluginV2({ name: 'todo_remote', exposes: {...}, shared: <same as the host> })`, and then confirm the `entry` URL in the manifest.
+- Store persistence with Zustand's `persist` middleware + AsyncStorage (the Step 2 queue is already ready for async writes).
+- "Last known good release" + `manifest.staging.json` / `manifest.prod.json` + `MANIFEST_URL` pointing to the CDN (Steps 7 and 9 of the root README).
