@@ -2,24 +2,20 @@
   "name": "products-remote",
   "version": "1.0.0",
   "main": "index.js",
+  "private": true,
+  "scripts": {
+    "start": "react-native start --port 9000",
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
-    "expo": "~57.0.23",
-    "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-native": "0.86.3"
   },
-  "publishConfig": {
-    "executableFiles": [
-      "./android/gradlew"
-    ]
-  },
-  "scripts": {
-    "start": "rnc-cli start --port 9000"
-  },
-  "private": true,
   "devDependencies": {
     "@callstack/repack": "^5.3.0",
     "@module-federation/enhanced": "^2.9.2",
+    "@react-native-community/cli": "^20.2.0",
+    "@react-native/babel-preset": "^0.86.3",
     "@rspack/core": "^1.7.8",
     "@swc/helpers": "^0.5.19",
     "@types/react": "~19.2.4",
