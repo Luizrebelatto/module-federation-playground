@@ -7,7 +7,6 @@ import {
 } from 'react-native';
 
 export default function ProductCard() {
-  console.log('[REMOTE] ProductCard rendered');
 
   return (
     <View style={styles.card}>
